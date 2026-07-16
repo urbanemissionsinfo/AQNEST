@@ -656,10 +656,10 @@ function logPopulation(population, index, label, layer, target) {
       <div class="monitors-grid">${monitorsHTML}</div>
     </div>
     <div class="mp-widget" id="${uid}">
-      <div class="mp-title">📍 Place Your Monitors</div>
+      <div class="mp-title">📍 How many stations do you want to place</div>
       <div class="mp-row">
-        <label class="mp-lbl">How many stations?</label>
-        <input class="mp-input" type="number" min="1" max="200" value="${numMonitorsCpcb('spm',population)}" id="${uid}-count"/>
+        <label class="mp-lbl">Select number of stations: </label>
+        <input class="mp-input" type="number" min="1" max="200" value="5" id="${uid}-count"/>
       </div>
       <div class="mp-row">
         <button class="mp-btn" onclick="startPlacingFromWidget('${uid}')">▶ Start Placing</button>
