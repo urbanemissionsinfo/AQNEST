@@ -649,21 +649,34 @@ function logPopulation(population, index, label, layer, target) {
   entry.innerHTML = `
     <div class="log-ts">${timestamp()}</div>
     <div class="log-type pop-label">👥 POPULATION · ${label || ('BBOX #'+index)}</div>
+    <span class="sub-label"><a href="https://landscan.ornl.gov/">LANDSCAN GLOBAL 2024</a></span>
     <div class="log-coords">
-      <span class="pop-big">${millions}M</span>
-      <span class="pop-raw">${formatted} people · ${areaStr}</span>
-      <span class="monitors-label">Min. monitors required · CPCB guidelines</span>
+      <span class="pop-big">${millions} Millions \n${areaStr}</span>
+      <span class="monitors-label">Min. monitors required</span><span class="sub-label">CPCB guidelines</span>
+
       <div class="monitors-grid">${monitorsHTML}</div>
     </div>
     <div class="mp-widget" id="${uid}">
-      <div class="mp-title">📍 How many stations do you want to place</div>
+      <div class="mp-title">📍 How many stations do you want to place?</div>
       <div class="mp-row">
         <label class="mp-lbl">Select number of stations: </label>
         <input class="mp-input" type="number" min="1" max="200" value="5" id="${uid}-count"/>
       </div>
+      
       <div class="mp-row">
-        <button class="mp-btn" onclick="startPlacingFromWidget('${uid}')">▶ Start Placing</button>
+        <button class="mp-btn" onclick="startPlacingFromWidget('${uid}')" style="flex: 1;">▶ Start Placing</button>
         <button class="mp-btn mp-btn-clear" onclick="clearMonitorPinsFromWidget('${uid}')">✕ Clear Pins</button>
+      </div>
+
+      <div class="mp-separator">
+        <span class="mp-separator-text">or</span>
+      </div>
+
+      <div class="mp-row">
+        <label class="mp-btn mp-btn-upload" style="display: block; cursor: pointer; text-align: center; width: 100%; margin: 0;">
+          ⬆ Upload station locations (GeoJSON)
+          <input type="file" id="${uid}-upload-pins" accept=".geojson,.json" style="display:none" onchange="uploadPinsFromWidget('${uid}', event)"/>
+        </label>
       </div>
       <div class="mp-placed">0 / ? monitors placed</div>
       <button class="mp-calc-btn" disabled onclick="calculateNetwork('${uid}')">⬛ Calculate Network Coverage</button>
@@ -675,6 +688,125 @@ function logPopulation(population, index, label, layer, target) {
   entry._target = target;
 
   out.appendChild(entry); out.scrollTop = out.scrollHeight;
+}
+
+// ── NEW FUNCTION: HANDLE GEOJSON PIN UPLOADS ───────────────────
+// ── NEW FUNCTION: HANDLE GEOJSON PIN UPLOADS ───────────────────
+function uploadPinsFromWidget(uid, event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = ''; // Reset input selection
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    let geojson = null;
+    try {
+      geojson = JSON.parse(e.target.result);
+    } catch (err) {
+      logError(`Could not parse Pins GeoJSON: ${err.message}`, logCount);
+      return;
+    }
+
+    // Stop manual placing mode first and clear existing pins
+    stopMonitorPlacement(); // This sets monitorTarget to null
+    clearMonitorPins();
+
+    // Track active widget
+    document.querySelectorAll('.mp-widget').forEach(w => w.removeAttribute('data-active'));
+    const widget = document.getElementById(uid);
+    if (widget) widget.setAttribute('data-active', '1');
+
+    // Retrieve target shape
+    const entry = widget ? widget.closest('.log-entry') : null;
+    const target = entry ? entry._target : null;
+    if (!target) return;
+
+    // FIX: Re-assign the global monitorTarget so calculateNetwork() has the reference shape!
+    monitorTarget = target;
+
+    // Parse out point coordinates [lat, lng]
+    let points = [];
+    function extractPoints(geom) {
+      if (!geom) return;
+      if (geom.type === 'Point') {
+        points.push([geom.coordinates[1], geom.coordinates[0]]); // GeoJSON is [lng, lat], Leaflet wants [lat, lng]
+      } else if (geom.type === 'GeometryCollection') {
+        geom.geometries.forEach(extractPoints);
+      }
+    }
+
+    if (geojson.type === 'FeatureCollection') {
+      geojson.features.forEach(f => extractPoints(f.geometry));
+    } else if (geojson.type === 'Feature') {
+      extractPoints(geojson.geometry);
+    } else {
+      extractPoints(geojson);
+    }
+
+    if (points.length === 0) {
+      logError("No Point features found in the uploaded pins file.", logCount);
+      return;
+    }
+
+    // Filter points to only those inside target boundary
+    const validPoints = points.filter(p => isPointInTarget(p[0], p[1], target));
+    const outOfBoundsCount = points.length - validPoints.length;
+
+    if (validPoints.length === 0) {
+      logError("All uploaded coordinates fell outside the selected boundary shape.", logCount);
+      return;
+    }
+
+    // Map each point as a Leaflet Marker & coverage Circle
+    validPoints.forEach((p, idx) => {
+      const latlng = { lat: p[0], lng: p[1] };
+      const pinNum = idx + 1;
+
+      const icon = L.divIcon({
+        className: '',
+        html: `<div class="monitor-pin">${pinNum}</div>`,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13]
+      });
+
+      const marker = L.marker(latlng, { icon, draggable: true }).addTo(map);
+
+      const circle = L.circle(latlng, {
+        radius: 2000,
+        color: '#164D12', weight: 1.2,
+        fillColor: '#164D12', fillOpacity: 0.08,
+        dashArray: '4 3'
+      }).addTo(map);
+
+      // Handle dragging properties
+      marker.on('drag', function(ev) {
+        circle.setLatLng(ev.latlng);
+      });
+      marker.on('dragend', function(ev) {
+        const ll = ev.target.getLatLng();
+        if (!isPointInTarget(ll.lat, ll.lng, target)) {
+          marker.setLatLng(latlng); // snap back if moved out of shape boundaries
+          circle.setLatLng(latlng);
+        }
+        updateMonitorPlacementUI();
+      });
+
+      monitorPins.push(marker);
+      monitorCircles.push(circle);
+    });
+
+    // Sync input count and UI
+    targetMonitorCount = monitorPins.length;
+    const countInput = document.getElementById(`${uid}-count`);
+    if (countInput) countInput.value = targetMonitorCount;
+
+    updateMonitorPlacementUI();
+
+    if (outOfBoundsCount > 0) {
+      logError(`Imported ${validPoints.length} pins inside shape boundary. (${outOfBoundsCount} pins were ignored for falling outside)`, logCount);
+    }
+  };
+  reader.readAsText(file);
 }
 
 function startPlacingFromWidget(uid) {

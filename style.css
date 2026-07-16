@@ -301,7 +301,7 @@ header {
 
 .log-coords {
     color: var(--text);
-    white-space: pre-wrap;
+    white-space: pre-line;
     word-break: break-all;
     font-size: 0.76rem;
     line-height: 1.6;
@@ -358,15 +358,22 @@ header {
 
 /* ── CPCB MONITORS TABLE ──────────────────────────────────── */
 .monitors-label {
-    display: block;
-    color: var(--muted);
-    font-size: 0.65rem;
-    font-weight: 600;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--accent);
     text-transform: uppercase;
-    letter-spacing: 0.09em;
-    margin-bottom: 7px;
+    letter-spacing: 0.07em;
+    display: block;
     padding-top: 10px;
     border-top: 1px solid var(--pop-border);
+}
+.sub-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    margin-bottom: 8px;
 }
 
 .monitors-grid {
@@ -486,7 +493,51 @@ label.btn:hover {
     color: var(--accent);
     background: var(--accent-lt);
 }
+/* Widget Options Separator */
+.mp-separator {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 10px 0;
+  color: var(--muted);
+}
 
+.mp-separator::before,
+.mp-separator::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px dashed var(--border);
+}
+
+.mp-separator:not(:empty)::before {
+  margin-right: .5em;
+}
+
+.mp-separator:not(:empty)::after {
+  margin-left: .5em;
+}
+
+.mp-separator-text {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* Distinctive styling for upload to separate it from "Start Placing" action */
+.mp-btn-upload {
+  background-color: var(--surface) !important;
+  color: var(--accent) !important;
+  border: 1.5px dashed var(--accent) !important;
+  transition: all 0.2s ease-in-out;
+}
+
+.mp-btn-upload:hover {
+  background-color: var(--accent-lt) !important;
+  border-style: solid !important;
+}
 /* ── MOBILE RESPONSIVE ────────────────────────────────────── */
 @media (max-width: 700px) {
 
