@@ -195,7 +195,7 @@ header {
   left: 50%;
   transform: translateX(-50%);
   z-index: 1000; /* Must sit above Leaflet layers */
-  background: #ff6b35;
+  background: #164D12;
   color: white;
   border: none;
   padding: 12px 24px;
@@ -586,4 +586,228 @@ label.btn:hover {
   .empty-state {
     margin-top: 24px;
   }
+}
+/* ── MONITOR PLACEMENT WIDGET ────────────────────────────────  */
+.mp-widget {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--pop-border);
+}
+
+.mp-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 8px;
+}
+
+.mp-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.mp-lbl {
+  font-size: 0.72rem;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.mp-input {
+  width: 64px;
+  padding: 5px 8px;
+  border: 1.5px solid var(--border);
+  border-radius: 4px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface);
+  outline: none;
+}
+
+.mp-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(22,77,18,0.1);
+}
+
+.mp-btn {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border: 1.5px solid var(--accent);
+  border-radius: 4px;
+  background: var(--accent-lt);
+  color: var(--accent);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mp-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.mp-btn-clear {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.mp-btn-clear:hover {
+  border-color: var(--accent2);
+  color: var(--accent2);
+  background: var(--accent2-lt);
+}
+
+.mp-placed {
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-bottom: 7px;
+  font-style: italic;
+}
+
+.mp-calc-btn {
+  width: 100%;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 8px 12px;
+  border: 1.5px solid var(--accent);
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: 0.02em;
+}
+
+.mp-calc-btn:hover:not(:disabled) {
+  background: #0f3a0d;
+  border-color: #0f3a0d;
+}
+
+.mp-calc-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ── MONITOR PIN ICON ────────────────────────────────────────── */
+.monitor-pin {
+  width: 26px;
+  height: 26px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 50%;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  cursor: grab;
+}
+
+/* ── NETWORK ANALYSIS ENTRY ──────────────────────────────────── */
+.log-entry.network {
+  background: #f0f4ff;
+  border-color: #b8c8f0;
+}
+
+.net-label {
+  color: #2a4acc !important;
+  font-size: 0.78rem;
+}
+
+.net-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.net-card {
+  background: var(--surface);
+  border: 1px solid #b8c8f0;
+  border-radius: 4px;
+  padding: 7px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.net-card-wide {
+  grid-column: 1 / -1;
+}
+
+.net-metric-label {
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.net-metric-val {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #2a4acc;
+  line-height: 1.15;
+  font-family: 'Source Serif 4', serif;
+}
+
+.net-metric-unit {
+  font-size: 0.62rem;
+  color: var(--muted);
+}
+
+/* Colour-coded representativeness card */
+.net-good { background: #eaf4e9; border-color: var(--pop-border); }
+.net-good .net-metric-val { color: var(--accent); }
+.net-mid  { background: #fefbe8; border-color: #e8d96e; }
+.net-mid  .net-metric-val { color: #7a6800; }
+.net-low  { background: var(--accent2-lt); border-color: #f5c9a8; }
+.net-low  .net-metric-val { color: var(--accent2); }
+
+/* Mobile: expand net-grid to single column */
+@media (max-width: 700px) {
+  .net-grid { grid-template-columns: 1fr; }
+  .net-card-wide { grid-column: 1; }
+}
+
+/* ── INLINE NETWORK RESULT (inside widget) ───────────────────── */
+.net-result {
+  margin-top: 10px;
+}
+
+.net-result-inner {
+  border-top: 1px solid var(--pop-border);
+  padding-top: 10px;
+  animation: fadeIn 0.25s ease;
+}
+
+.net-result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+
+.net-label-inline {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #2a4acc;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.net-result-ts {
+  font-size: 0.62rem;
+  color: var(--muted);
 }
