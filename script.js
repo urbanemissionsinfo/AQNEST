@@ -462,7 +462,6 @@ function handleFileUpload(event) {
     const entry = document.createElement('div');
     entry.className = 'log-entry info';
     entry.innerHTML = `
-      <div class="log-ts">${timestamp()}</div>
       <div class="log-type">📁 FILE · ${name}</div>
       <div class="log-coords">${featureCount} feature${featureCount!==1?'s':''}\nSW: [${sw.lat.toFixed(4)}, ${sw.lng.toFixed(4)}]\nNE: [${ne.lat.toFixed(4)}, ${ne.lng.toFixed(4)}]</div>`;
     const out = document.getElementById('console-output');
@@ -593,7 +592,7 @@ function clearAll() {
   out.innerHTML = '';
   const entry = document.createElement('div');
   entry.className = 'log-entry clear';
-  entry.innerHTML = `<div class="log-ts">${timestamp()}</div><div class="log-type">✕ ALL CLEARED</div><div class="log-coords">Canvas reset. Ready for new shapes.</div>`;
+  entry.innerHTML = `<div class="log-type">✕ ALL CLEARED</div><div class="log-coords">Canvas reset. Ready for new shapes.</div>`;
   out.appendChild(entry);
   mode = null;
   ['btn-bbox','btn-poly'].forEach(id => document.getElementById(id).classList.remove('active'));
@@ -623,7 +622,7 @@ function logCoords(coords) {
     : coords.vertices.map(v=>`[${v.lat}, ${v.lng}]`).join('\n');
   const entry = document.createElement('div');
   entry.className = 'log-entry info';
-  entry.innerHTML = `<div class="log-ts">${timestamp()}</div><div class="log-type">${label}</div><div class="log-coords">${display}</div>`;
+  entry.innerHTML = `<div class="log-type">${label}</div><div class="log-coords">${display}</div>`;
   out.appendChild(entry); out.scrollTop = out.scrollHeight;
 }
 
@@ -647,7 +646,6 @@ function logPopulation(population, index, label, layer, target) {
   const entry = document.createElement('div');
   entry.className = 'log-entry population';
   entry.innerHTML = `
-    <div class="log-ts">${timestamp()}</div>
     <div class="log-type pop-label">👥 POPULATION · ${label || ('BBOX #'+index)}</div>
     <span class="sub-label"><a href="https://landscan.ornl.gov/">LANDSCAN GLOBAL 2024</a></span>
     <div class="log-coords">
@@ -857,7 +855,6 @@ function logNetworkAnalysis(n, avgDist, unionArea, shapeArea, ratio, uid) {
     <div class="net-result-inner">
       <div class="net-result-header">
         <span class="net-label-inline">📡 Network Analysis · ${n} stations</span>
-        <span class="net-result-ts">${timestamp()}</span>
       </div>
       <div class="net-grid">
         <div class="net-card">
@@ -890,6 +887,6 @@ function logError(msg, index) {
   const out = document.getElementById('console-output');
   const entry = document.createElement('div');
   entry.className = 'log-entry pop-error';
-  entry.innerHTML = `<div class="log-ts">${timestamp()}</div><div class="log-type pop-label">⚠ NOTE · #${index}</div><div class="log-coords">${msg}</div>`;
+  entry.innerHTML = `<div class="log-type pop-label">⚠ NOTE · #${index}</div><div class="log-coords">${msg}</div>`;
   out.appendChild(entry); out.scrollTop = out.scrollHeight;
 }
