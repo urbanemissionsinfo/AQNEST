@@ -2,16 +2,43 @@
 const map = L.map('map', { center: [22.5, 82.0], zoom: 5, zoomControl: true });
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© OpenStreetMap contributors',
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   maxZoom: 18
 }).addTo(map);
 
-// ── CSV PATH ──────────────────────────────────────────────────
-const CSV_PATH = 'data/cpcb_sites_202607.csv';
+// ── INDIA OFFICIAL BOUNDARY OVERLAY ──────────────────────────
+(async function loadIndiaBoundary() {
+  try {
+    const resp = await fetch('data/india_boundary.geojson');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const geojson = await resp.json();
+    L.geoJSON(geojson, {
+      style: {
+        color: '#333333',
+        weight: 1.8,
+        opacity: 1,
+        fillColor: 'transparent',
+        fillOpacity: 0,
+        dashArray: null
+      },
+      interactive: false
+    }).addTo(map);
+  } catch (err) {
+    console.warn('[Boundary] Could not load india_boundary.geojson:', err.message);
+  }
+})();
 
-// ── STATION STATE ─────────────────────────────────────────────
-let allStations  = [];   // [{ lat, lng, name, ...rest }]
-let stationLayer = null; // L.layerGroup of all station markers
+// ── TIF PATH & GEOTIFF STATE ──────────────────────────────────
+const TIF_PATH = 'data/landscan-india-2024.tif';
+let tifImage  = null;
+let tifMeta   = {};
+let tifData   = null;
+let tifNodata = null;
+
+// ── CSV PATH & STATION STATE ──────────────────────────────────
+const CSV_PATH = 'data/cpcb_sites_202607.csv';
+let allStations  = [];
+let stationLayer = null;
 
 // ── DRAWING STATE ─────────────────────────────────────────────
 let mode        = null;
@@ -32,6 +59,39 @@ if (finishPolyBtn) {
   });
 }
 
+// ── LOAD TIF ON STARTUP ───────────────────────────────────────
+(async function loadTif() {
+  setTifStatus('loading', 'Loading LandScan raster…');
+  try {
+    const resp = await fetch(TIF_PATH);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} — is the file committed to your repo at ${TIF_PATH}?`);
+    const arrayBuffer = await resp.arrayBuffer();
+    const tif = await GeoTIFF.fromArrayBuffer(arrayBuffer);
+    tifImage  = await tif.getImage();
+    const bbox    = tifImage.getBoundingBox();
+    const fileDir = tifImage.getFileDirectory();
+    tifNodata = fileDir.GDAL_NODATA !== undefined ? parseFloat(fileDir.GDAL_NODATA) : null;
+    tifMeta = {
+      originX: bbox[0], originY: bbox[3],
+      pixelW: (bbox[2] - bbox[0]) / tifImage.getWidth(),
+      pixelH: (bbox[3] - bbox[1]) / tifImage.getHeight(),
+      width: tifImage.getWidth(), height: tifImage.getHeight()
+    };
+    const rasters = await tifImage.readRasters({ interleave: false });
+    tifData = rasters[0];
+    setTifStatus('ready', `✓ LandScan loaded · ${tifMeta.width}×${tifMeta.height} px`);
+  } catch (err) {
+    setTifStatus('error', `✗ ${err.message}`);
+  }
+})();
+
+function setTifStatus(state, text) {
+  const bar  = document.getElementById('tif-status');
+  const span = document.getElementById('tif-status-text');
+  bar.className = `tif-status ${state}`;
+  span.textContent = text;
+}
+
 // ── LOAD CSV ON STARTUP ───────────────────────────────────────
 (async function loadStations() {
   setStationStatus('loading', 'Loading CPCB stations…');
@@ -49,8 +109,6 @@ if (finishPolyBtn) {
 })();
 
 // ── CSV PARSER ────────────────────────────────────────────────
-// Expects columns named "latitude" and "longitude" (case-insensitive).
-// Any other columns are kept as metadata.
 function parseCSV(text) {
   const lines = text.trim().split(/\r?\n/);
   if (lines.length < 2) return [];
@@ -79,7 +137,6 @@ function parseCSV(text) {
 }
 
 function splitCSVLine(line) {
-  // Handle quoted fields
   const result = [];
   let cur = '', inQuote = false;
   for (let i = 0; i < line.length; i++) {
@@ -98,7 +155,6 @@ function renderStationMarkers() {
   stationLayer = L.layerGroup();
 
   allStations.forEach(s => {
-    // 2 km buffer circle (drawn first so dots sit on top)
     L.circle([s.lat, s.lng], {
       radius: 2000,
       color: '#164D12', weight: 0.8,
@@ -107,7 +163,6 @@ function renderStationMarkers() {
       interactive: false
     }).addTo(stationLayer);
 
-    // Station dot
     const marker = L.circleMarker([s.lat, s.lng], {
       radius: 5,
       color: '#164D12',
@@ -125,8 +180,85 @@ function renderStationMarkers() {
 function setStationStatus(state, text) {
   const bar  = document.getElementById('station-status');
   const span = document.getElementById('station-status-text');
-  bar.className = `tif-status ${state}`;
-  span.textContent = text;
+  if (bar && span) {
+    bar.className = `tif-status ${state}`;
+    span.textContent = text;
+  }
+}
+
+// ── POPULATION ENGINES ────────────────────────────────────────
+function computePopulation(south, west, north, east) {
+  if (!tifData) return null;
+  const { originX, originY, pixelW, pixelH, width, height } = tifMeta;
+  const colMin = Math.max(0, Math.floor((west - originX) / pixelW));
+  const colMax = Math.min(width - 1, Math.ceil((east - originX) / pixelW));
+  const rowMin = Math.max(0, Math.floor((originY - north) / pixelH));
+  const rowMax = Math.min(height - 1, Math.ceil((originY - south) / pixelH));
+  if (colMin > colMax || rowMin > rowMax) return 0;
+  let total = 0;
+  for (let row = rowMin; row <= rowMax; row++) {
+    for (let col = colMin; col <= colMax; col++) {
+      const val = tifData[row * width + col];
+      if (val === tifNodata || val < 0) continue;
+      total += val;
+    }
+  }
+  return Math.round(total);
+}
+
+function computePopulationFromRing(ring) {
+  if (!tifData) return null;
+  const { originX, originY, pixelW, pixelH, width, height } = tifMeta;
+  const lngs = ring.map(c => c[0]), lats = ring.map(c => c[1]);
+  const west = Math.min(...lngs), east = Math.max(...lngs), south = Math.min(...lats), north = Math.max(...lats);
+  const colMin = Math.max(0, Math.floor((west - originX) / pixelW));
+  const colMax = Math.min(width - 1, Math.ceil((east - originX) / pixelW));
+  const rowMin = Math.max(0, Math.floor((originY - north) / pixelH));
+  const rowMax = Math.min(height - 1, Math.ceil((originY - south) / pixelH));
+  if (colMin > colMax || rowMin > rowMax) return 0;
+  let total = 0;
+  for (let row = rowMin; row <= rowMax; row++) {
+    const pixLat = originY - (row + 0.5) * pixelH;
+    for (let col = colMin; col <= colMax; col++) {
+      const pixLng = originX + (col + 0.5) * pixelW;
+      if (!pointInPolygon(pixLng, pixLat, ring)) continue;
+      const val = tifData[row * width + col];
+      if (val === tifNodata || val < 0) continue;
+      total += val;
+    }
+  }
+  return Math.round(total);
+}
+
+function numMonitorsCpcb(pollutant, population) {
+  let num = [];
+  if (pollutant === 'spm') {
+    num = [4];
+    if (population < 100000) return num.reduce((a, b) => a + b, 0);
+    num.push(population > 1000000 ? Math.floor(4 + 0.6 * 900000 / 100000) + 1 : Math.floor(4 + 0.6 * (population - 100000) / 100000) + 1);
+    num.push(population > 5000000 ? Math.floor(7.5 + 0.25 * 4000000 / 100000) + 1 : Math.floor(7.5 + 0.25 * (population - 1000000) / 100000) + 1);
+    if (population > 5000000) num.push(Math.floor(12 + 0.16 * (population - 5000000) / 100000) + 1);
+  }
+  if (pollutant === 'so2') {
+    num = [3];
+    if (population < 100000) return num.reduce((a, b) => a + b, 0);
+    num.push(population > 1000000 ? Math.floor(2.5 + 0.5 * 900000 / 100000) + 1 : Math.floor(2.5 + 0.5 * (population - 100000) / 100000) + 1);
+    num.push(population > 10000000 ? Math.floor(6 + 0.15 * 9000000 / 100000) + 1 : Math.floor(6 + 0.15 * (population - 1000000) / 100000) + 1);
+    if (population > 10000000) num.push(20);
+  }
+  if (pollutant === 'no2') {
+    num = [4];
+    if (population < 100000) return num.reduce((a, b) => a + b, 0);
+    num.push(population > 1000000 ? Math.floor(4 + 0.6 * 900000 / 100000) + 1 : Math.floor(4 + 0.6 * (population - 100000) / 100000) + 1);
+    if (population > 1000000) num.push(10);
+  }
+  if (pollutant === 'co') {
+    num = [1];
+    if (population < 100000) return num.reduce((a, b) => a + b, 0);
+    num.push(population > 5000000 ? Math.floor(1 + 0.15 * 4900000 / 100000) + 1 : Math.floor(1 + 0.15 * (population - 100000) / 100000) + 1);
+    if (population > 5000000) num.push(Math.floor(6 + 0.05 * (population - 5000000) / 100000) + 1);
+  }
+  return num.reduce((a, b) => a + b, 0);
 }
 
 // ── GEOMETRY HELPERS ──────────────────────────────────────────
@@ -167,7 +299,6 @@ function bboxAreaKm2(south, west, north, east) {
   return ringAreaKm2([[west,south],[west,north],[east,north],[east,south],[west,south]]);
 }
 
-// Union area of circles via raster scan at ~200 m resolution
 function unionCircleAreaKm2(pins, radiusKm) {
   if (pins.length === 0) return 0;
   const lats = pins.map(p => p[0]), lngs = pins.map(p => p[1]);
@@ -189,37 +320,18 @@ function unionCircleAreaKm2(pins, radiusKm) {
   return count * cellAreaKm2;
 }
 
-function avgPairwiseDistKm(pins) {
-  if (pins.length < 2) return 0;
-  let total = 0, pairs = 0;
-  for (let i = 0; i < pins.length; i++)
-    for (let j = i + 1; j < pins.length; j++) {
-      total += haversineKm(pins[i][0], pins[i][1], pins[j][0], pins[j][1]);
-      pairs++;
-    }
-  return total / pairs;
-}
-
 function avgNearestNeighborDistKm(pins) {
   if (pins.length < 2) return 0;
-  
   let sumMinDistances = 0;
-  
   for (let i = 0; i < pins.length; i++) {
     let minDist = Infinity;
-    
     for (let j = 0; j < pins.length; j++) {
-      if (i === j) continue; // Don't measure a pin against itself
-      
+      if (i === j) continue;
       const dist = haversineKm(pins[i][0], pins[i][1], pins[j][0], pins[j][1]);
-      if (dist < minDist) {
-        minDist = dist;
-      }
+      if (dist < minDist) minDist = dist;
     }
-    
     sumMinDistances += minDist;
   }
-  
   return sumMinDistances / pins.length;
 }
 
@@ -234,7 +346,6 @@ function stationsInsideRing(ring) {
 
 // ── HIGHLIGHT STATIONS INSIDE SHAPE ──────────────────────────
 let highlightLayer = null;
-
 function highlightStations(stations) {
   if (highlightLayer) map.removeLayer(highlightLayer);
   highlightLayer = L.layerGroup();
@@ -249,7 +360,6 @@ function highlightStations(stations) {
     marker.bindTooltip(`${i + 1}. ${s.name}`, { direction: 'top', offset: [0, -8], className: 'station-tooltip' });
     highlightLayer.addLayer(marker);
 
-    // 2 km circle
     L.circle([s.lat, s.lng], {
       radius: 2000,
       color: '#164D12', weight: 1,
@@ -261,11 +371,11 @@ function highlightStations(stations) {
 }
 
 // ── ANALYSE AND LOG ───────────────────────────────────────────
-function analyseShape(stations, areaSqKm, shapeLabel) {
+function analyseShape(stations, areaSqKm, shapeLabel, population) {
   const n = stations.length;
 
   if (n === 0) {
-    logResult(shapeLabel, areaSqKm, 0, null, null, null);
+    logResult(shapeLabel, areaSqKm, population, 0, null, null, null);
     return;
   }
 
@@ -275,7 +385,7 @@ function analyseShape(stations, areaSqKm, shapeLabel) {
   const ratio   = (covered / areaSqKm) * 100;
 
   highlightStations(stations);
-  logResult(shapeLabel, areaSqKm, n, avgDist, covered, ratio);
+  logResult(shapeLabel, areaSqKm, population, n, avgDist, covered, ratio);
 }
 
 // ── MODE SELECTOR ─────────────────────────────────────────────
@@ -329,9 +439,10 @@ map.on('mouseup', function(e) {
   logCount++; updateBadge();
   document.getElementById('console-output').querySelector('.empty-state')?.remove();
 
-  const areaSqKm = bboxAreaKm2(sw.lat, sw.lng, ne.lat, ne.lng);
-  const inside   = stationsInsideBbox(sw.lat, sw.lng, ne.lat, ne.lng);
-  analyseShape(inside, areaSqKm, `BBOX #${logCount}`);
+  const areaSqKm   = bboxAreaKm2(sw.lat, sw.lng, ne.lat, ne.lng);
+  const inside     = stationsInsideBbox(sw.lat, sw.lng, ne.lat, ne.lng);
+  const population = computePopulation(sw.lat, sw.lng, ne.lat, ne.lng);
+  analyseShape(inside, areaSqKm, `BBOX #${logCount}`, population);
 
   mode = null;
   document.getElementById('btn-bbox').classList.remove('active');
@@ -369,16 +480,17 @@ function finishPolygon() {
 
   const ring = finalPoints.map(p => [p.lng, p.lat]);
   ring.push(ring[0]);
-  const areaSqKm = ringAreaKm2(ring);
-  const inside   = stationsInsideRing(ring);
-  analyseShape(inside, areaSqKm, `POLYGON #${logCount}`);
+  const areaSqKm   = ringAreaKm2(ring);
+  const inside     = stationsInsideRing(ring);
+  const population = computePopulationFromRing(ring);
+  analyseShape(inside, areaSqKm, `POLYGON #${logCount}`, population);
 
   mode = null;
   document.getElementById('btn-poly').classList.remove('active');
   resetIndicator();
 }
 
-// ── FILE UPLOAD (boundary only) ───────────────────────────────
+// ── FILE UPLOAD ───────────────────────────────────────────────
 function handleFileUpload(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -408,7 +520,6 @@ function handleFileUpload(event) {
     logCount++; updateBadge();
     document.getElementById('console-output').querySelector('.empty-state')?.remove();
 
-    // Extract first ring
     let ring = null;
     function extractRing(geom) {
       if (!geom || ring) return;
@@ -422,10 +533,11 @@ function handleFileUpload(event) {
 
     const bounds  = layer.getBounds();
     const sw = bounds.getSouthWest(), ne = bounds.getNorthEast();
-    const areaSqKm = ring ? ringAreaKm2(ring) : bboxAreaKm2(sw.lat, sw.lng, ne.lat, ne.lng);
-    const inside   = ring ? stationsInsideRing(ring) : stationsInsideBbox(sw.lat, sw.lng, ne.lat, ne.lng);
+    const areaSqKm   = ring ? ringAreaKm2(ring) : bboxAreaKm2(sw.lat, sw.lng, ne.lat, ne.lng);
+    const inside     = ring ? stationsInsideRing(ring) : stationsInsideBbox(sw.lat, sw.lng, ne.lat, ne.lng);
+    const population = ring ? computePopulationFromRing(ring) : computePopulation(sw.lat, sw.lng, ne.lat, ne.lng);
 
-    analyseShape(inside, areaSqKm, file.name);
+    analyseShape(inside, areaSqKm, file.name, population);
   };
   reader.readAsText(file);
 }
@@ -465,12 +577,33 @@ function resetIndicator() {
   document.body.classList.remove('drawing');
 }
 
-function logResult(shapeLabel, areaSqKm, n, avgDist, covered, ratio) {
+function logResult(shapeLabel, areaSqKm, population, n, avgDist, covered, ratio) {
   const out = document.getElementById('console-output');
   const ratioStr   = ratio !== null ? ratio.toFixed(1) + '%' : '—';
   const ratioClass = ratio === null ? '' : ratio >= 75 ? 'net-good' : ratio >= 40 ? 'net-mid' : 'net-low';
   const avgDistStr = avgDist !== null ? avgDist.toFixed(1) + ' km' : '—';
   const coveredStr = covered !== null ? covered.toFixed(0) + ' km²' : '—';
+
+  const pollutants = ['spm','so2','no2','co'];
+  const pLabels    = { spm:'SPM', so2:'SO₂', no2:'NO₂', co:'CO' };
+  let popHTML = '';
+  if (population !== null) {
+    const millions  = (population / 1_000_000).toFixed(2);
+    const formatted = population.toLocaleString('en-IN');
+    const monitorsHTML = pollutants.map(p => {
+      const val = numMonitorsCpcb(p, population);
+      return `<div class="monitor-card"><span class="monitor-pollutant">${pLabels[p]}</span><span class="monitor-val">${val}</span><span class="monitor-unit">stations</span></div>`;
+    }).join('');
+    popHTML = `
+      <div class="pop-block">
+        <div class="pop-block-label">👥 Population <span class="pop-source">· LandScan Global 2024</span></div>
+        <span class="pop-big">${millions} Millions \n ${areaSqKm.toFixed(0)} km² </span>
+        <span class="monitors-label">Min. monitors required</span><span class="sub-label">CPCB guidelines</span>
+        <div class="monitors-grid">${monitorsHTML}</div>
+      </div>`;
+  } else {
+    popHTML = `<div class="pop-block pop-unavail">Population data loading… draw again once LandScan is ready.</div>`;
+  }
 
   const noStationsMsg = n === 0
     ? `<div class="no-stations-msg">No CPCB stations found within this region.</div>`
@@ -479,10 +612,9 @@ function logResult(shapeLabel, areaSqKm, n, avgDist, covered, ratio) {
   const entry = document.createElement('div');
   entry.className = 'log-entry network';
   entry.innerHTML = `
-    <div class="log-ts">${timestamp()}</div>
-    <div class="log-type net-label">📡 ${shapeLabel} · ${n} station${n !== 1 ? 's' : ''}</div>
     <div class="log-coords">
-      <div class="shape-meta">${areaSqKm.toFixed(0)} km² total area</div>
+      ${popHTML}
+      <div class="section-divider">📡 Existing CPCB Network · ${n} station${n !== 1 ? 's' : ''}</div>
       ${noStationsMsg}
       ${n > 0 ? `
       <div class="net-grid">
@@ -492,9 +624,9 @@ function logResult(shapeLabel, areaSqKm, n, avgDist, covered, ratio) {
           <span class="net-metric-unit">CPCB monitoring sites</span>
         </div>
         <div class="net-card">
-          <span class="net-metric-label">Avg. distance</span>
+          <span class="net-metric-label">Avg. Nearest Neighbor</span>
           <span class="net-metric-val">${avgDistStr}</span>
-          <span class="net-metric-unit">between stations</span>
+          <span class="net-metric-unit">to closest station</span>
         </div>
         <div class="net-card">
           <span class="net-metric-label">Area covered</span>

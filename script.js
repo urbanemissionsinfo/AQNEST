@@ -5,6 +5,27 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '© OpenStreetMap contributors',
   maxZoom: 18
 }).addTo(map);
+// ── INDIA OFFICIAL BOUNDARY OVERLAY ──────────────────────────
+(async function loadIndiaBoundary() {
+  try {
+    const resp = await fetch('data/india_boundary.geojson');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const geojson = await resp.json();
+    L.geoJSON(geojson, {
+      style: {
+        color: '#333333',
+        weight: 1.8,
+        opacity: 1,
+        fillColor: 'transparent',
+        fillOpacity: 0,
+        dashArray: null
+      },
+      interactive: false
+    }).addTo(map);
+  } catch (err) {
+    console.warn('[Boundary] Could not load india_boundary.geojson:', err.message);
+  }
+})();
 
 // ── TIF PATH ──────────────────────────────────────────────────
 const TIF_PATH = 'data/landscan-india-2024.tif';
@@ -255,6 +276,23 @@ function avgPairwiseDistKm(pins) {
   return total / pairs;
 }
 
+function avgNearestNeighborDistKm(pins) {
+  if (pins.length < 2) return 0;
+  let sumMinDistances = 0;
+  for (let i = 0; i < pins.length; i++) {
+    let minDist = Infinity;
+    for (let j = 0; j < pins.length; j++) {
+      if (i === j) continue;
+      const dist = haversineKm(pins[i][0], pins[i][1], pins[j][0], pins[j][1]);
+      if (dist < minDist) minDist = dist;
+    }
+    sumMinDistances += minDist;
+  }
+  return sumMinDistances / pins.length;
+}
+
+
+
 // ── MONITOR PLACEMENT ─────────────────────────────────────────
 
 function activateMonitorPlacement(target, count) {
@@ -395,7 +433,7 @@ function calculateNetwork(uid) {
   if (monitorPins.length < 2) return;
   const pins = monitorPins.map(m => { const ll = m.getLatLng(); return [ll.lat, ll.lng]; });
 
-  const avgDist   = avgPairwiseDistKm(pins);
+  const avgDist   = avgNearestNeighborDistKm(pins);
   const unionArea = unionCircleAreaKm2(pins, 2);
   const shapeArea = monitorTarget ? monitorTarget.areaSqKm : null;
   const ratio     = shapeArea ? (unionArea / shapeArea) * 100 : null;
