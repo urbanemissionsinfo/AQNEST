@@ -862,3 +862,98 @@ label.btn:hover {
   font-size: 0.62rem;
   color: var(--muted);
 }
+/* ── STATION TOOLTIP ─────────────────────────────────────────── */
+.station-tooltip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.72rem;
+  padding: 4px 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  white-space: nowrap;
+}
+
+.station-tooltip::before { display: none; }
+
+/* ── SHAPE META LINE ─────────────────────────────────────────── */
+.shape-meta {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+/* ── NO STATIONS MESSAGE ─────────────────────────────────────── */
+.no-stations-msg {
+  font-size: 0.78rem;
+  color: var(--accent2);
+  background: var(--accent2-lt);
+  border: 1px solid #f5c9a8;
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin-top: 4px;
+}
+
+/* ── NETWORK RESULT ENTRY ────────────────────────────────────── */
+.log-entry.network {
+  background: #f0f4ff;
+  border-color: #b8c8f0;
+}
+
+.net-label {
+  color: #2a4acc !important;
+  font-size: 0.78rem;
+}
+
+.net-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.net-card {
+  background: var(--surface);
+  border: 1px solid #b8c8f0;
+  border-radius: 4px;
+  padding: 7px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.net-card-wide { grid-column: 1 / -1; }
+
+.net-metric-label {
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.net-metric-val {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #2a4acc;
+  line-height: 1.15;
+  font-family: 'Source Serif 4', serif;
+}
+
+.net-metric-unit {
+  font-size: 0.62rem;
+  color: var(--muted);
+}
+
+.net-good { background: #eaf4e9; border-color: var(--pop-border); }
+.net-good .net-metric-val { color: var(--accent); }
+.net-mid  { background: #fefbe8; border-color: #e8d96e; }
+.net-mid  .net-metric-val { color: #7a6800; }
+.net-low  { background: var(--accent2-lt); border-color: #f5c9a8; }
+.net-low  .net-metric-val { color: var(--accent2); }
+
+@media (max-width: 700px) {
+  .net-grid { grid-template-columns: 1fr; }
+  .net-card-wide { grid-column: 1; }
+}
