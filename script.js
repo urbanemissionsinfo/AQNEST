@@ -1,3 +1,4 @@
+let currentPopulation = null;
 // ── MAP INIT ──────────────────────────────────────────────────
 const map = L.map('map', { center: [22.5, 82.0], zoom: 5, zoomControl: true });
 
@@ -35,6 +36,63 @@ let tifImage  = null;
 let tifMeta   = {};
 let tifData   = null;
 let tifNodata = null;
+
+// ── CPCB CSV MONITOR SITES ────────────────────────────────────
+const CSV_PATH = 'data/cpcb_sites_202607.csv';
+let csvMonitors = [];   // [{lat, lng, site_id, location_name, city_name, state_name, marker}]
+
+// ── UPDATED CPCB CSV MONITOR SITES ────────────────────────────
+(async function loadCsvMonitors() {
+  try {
+    const rows = await d3.csv(CSV_PATH);
+    csvMonitors = rows.map(function(r) {
+      const lat = parseFloat(r.latitude);
+      const lng = parseFloat(r.longitude);
+      return {
+        lat: lat, lng: lng,
+        site_id: r.site_id, location_name: r.location_name,
+        city_name: r.city_name, district_name: r.district_name,
+        state_name: r.state_name, ncap_city_flag: r.ncap_city_flag,
+        marker: null,
+        buffer: null // Added to store the circle instance
+      };
+    }).filter(function(m) { return isFinite(m.lat) && isFinite(m.lng); });
+
+    csvMonitors.forEach(function(m) {
+      // 1. Create the circle buffer
+      const buffer = L.circle([m.lat, m.lng], {
+        radius: 2000,
+        color: '#1a56db', weight: 1,
+        fillColor: '#1a56db', fillOpacity: 0.1,
+        dashArray: '4 3'
+      }).addTo(map);
+
+      // 2. Create the marker
+      const marker = L.circleMarker([m.lat, m.lng], {
+        radius: 4, color: '#1a56db', weight: 1,
+        fillColor: '#1a56db', fillOpacity: 0.65
+      }).addTo(map);
+
+      marker.bindTooltip(
+        `${m.location_name || m.site_id}<br/>${m.city_name || ''}${m.state_name ? ', '+m.state_name : ''}`,
+        { direction: 'top', sticky: true }
+      );
+      
+      m.marker = marker;
+      m.buffer = buffer; // Store reference
+    });
+
+    // ... (rest of the console logging code remains same)
+  } catch (err) {
+    console.warn('[CSV] Could not load', CSV_PATH, ':', err.message);
+  }
+})();
+// Existing CSV monitors that fall inside a given target shape
+function csvMonitorsInTarget(target) {
+  return csvMonitors
+    .filter(function(m) { return isPointInTarget(m.lat, m.lng, target); })
+    .map(function(m) { return [m.lat, m.lng]; });
+}
 
 // ── DRAWING STATE ─────────────────────────────────────────────
 let mode        = null;
@@ -304,7 +362,12 @@ function activateMonitorPlacement(target, count) {
 
   const ind = document.getElementById('mode-indicator');
   ind.classList.add('active');
-  ind.innerHTML = `📍 Place Monitor Mode<div class="hint">Click inside shape · ${count} to place</div>`;
+  
+  // Enhanced visual feedback in the indicator
+  ind.style.backgroundColor = '#164D12';
+  ind.style.color = 'white';
+  
+  ind.innerHTML = `📍 Place Monitor Mode<div class="hint">Click inside shape to place ${count} monitors</div>`;
   document.body.classList.add('drawing');
 
   updateMonitorPlacementUI();
@@ -430,18 +493,27 @@ function isPointInTarget(lat, lng, target) {
 }
 
 function calculateNetwork(uid) {
-  if (monitorPins.length < 2) return;
-  const pins = monitorPins.map(m => { const ll = m.getLatLng(); return [ll.lat, ll.lng]; });
+  const widget = document.getElementById(uid);
+  const entry  = widget ? widget.closest('.log-entry') : null;
+  const target = (entry && entry._target) ? entry._target : monitorTarget;
+  if (!target) return;
+
+  const csvPins = target.csvPins || [];
+  // Only include newly-placed pins if this widget is the one currently active for placement
+  const isActiveWidget = widget && widget.hasAttribute('data-active');
+  const placedPins = isActiveWidget
+    ? monitorPins.map(m => { const ll = m.getLatLng(); return [ll.lat, ll.lng]; })
+    : [];
+
+  const pins = csvPins.concat(placedPins);
+  if (pins.length < 2) return;
 
   const avgDist   = avgNearestNeighborDistKm(pins);
   const unionArea = unionCircleAreaKm2(pins, 2);
-  const shapeArea = monitorTarget ? monitorTarget.areaSqKm : null;
+  const shapeArea = target.areaSqKm;
   const ratio     = shapeArea ? (unionArea / shapeArea) * 100 : null;
 
-  // Find result container: active widget's placeholder, or uid from button
-  const activeWidget = document.querySelector('.mp-widget[data-active]');
-  const resultUid = activeWidget ? activeWidget.id : uid;
-  logNetworkAnalysis(pins.length, avgDist, unionArea, shapeArea, ratio, resultUid);
+  logNetworkAnalysis(pins.length, avgDist, unionArea, shapeArea, ratio, uid);
 }
 
 // ── FILE UPLOAD ───────────────────────────────────────────────
@@ -495,6 +567,8 @@ function handleFileUpload(event) {
     else extractRing(geojson);
 
     const areaSqKm = ring ? ringAreaKm2(ring) : bboxAreaKm2(sw.lat, sw.lng, ne.lat, ne.lng);
+    const target0 = { type: ring ? 'polygon' : 'bbox', layer, ring, areaSqKm };
+    target0.csvPins = csvMonitorsInTarget(target0);
 
     const featureCount = geojson.features ? geojson.features.length : 1;
     const entry = document.createElement('div');
@@ -506,7 +580,8 @@ function handleFileUpload(event) {
     out.appendChild(entry); out.scrollTop = out.scrollHeight;
 
     const population = computePopulationFromGeoJSON(geojson);
-    if (population !== null) logPopulation(population, logCount, name, layer, { type:'geojson', layer, ring, areaSqKm });
+    currentPopulation = population;
+    if (population !== null) logPopulation(population, logCount, name, layer, target0);
     else logError('TIF not loaded yet.', logCount);
   };
   reader.readAsText(file);
@@ -571,10 +646,25 @@ map.on('mouseup', function(e) {
 
   const areaSqKm = bboxAreaKm2(sw.lat, sw.lng, ne.lat, ne.lng);
   const target = { type:'bbox', layer: savedRect, areaSqKm };
+  target.csvPins = csvMonitorsInTarget(target);
 
   const population = computePopulation(sw.lat, sw.lng, ne.lat, ne.lng);
-  if (population !== null) logPopulation(population, logCount, null, savedRect, target);
-  else logError('TIF not loaded yet.', logCount);
+  currentPopulation = population;
+  if (population !== null) {
+    logPopulation(population, logCount, null, savedRect, target);
+    
+    // --- NEW: Automatically trigger analysis ---
+    // We get the latest UID (most recently added entry)
+    const out = document.getElementById('console-output');
+    const lastEntry = out.lastElementChild;
+    const uid = lastEntry.dataset.uid;
+    if (uid) {
+        calculateNetwork(uid);
+    }
+    // -------------------------------------------
+    
+  } else logError('TIF not loaded yet.', logCount);
+  
   mode = null;
   document.getElementById('btn-bbox').classList.remove('active');
   const ind = document.getElementById('mode-indicator');
@@ -605,9 +695,11 @@ function finishPolygon() {
   ring.push(ring[0]);
   const areaSqKm = ringAreaKm2(ring);
   const target = { type:'polygon', layer: poly, ring, areaSqKm };
+  target.csvPins = csvMonitorsInTarget(target);
 
   const polyGeojson = { type:'Polygon', coordinates:[ring] };
   const population = computePopulationFromGeoJSON(polyGeojson);
+  currentPopulation = population;
   if (population !== null) logPopulation(population, logCount, 'Drawn Polygon', poly, target);
   else logError('TIF not loaded yet.', logCount);
 
@@ -680,6 +772,10 @@ function logPopulation(population, index, label, layer, target) {
 
   // Unique id for this entry's placement widget
   const uid = `mp-${Date.now()}`;
+  const csvCount = target && target.csvPins ? target.csvPins.length : 0;
+  const csvNote = csvCount > 0
+    ? `<div class="sub-label">📡 ${csvCount} existing CPCB monitor${csvCount!==1?'s':''} found in this area</div>`
+    : `<div class="sub-label">📡 No existing CPCB monitors found in this area</div>`;
 
   const entry = document.createElement('div');
   entry.className = 'log-entry population';
@@ -693,7 +789,8 @@ function logPopulation(population, index, label, layer, target) {
       <div class="monitors-grid">${monitorsHTML}</div>
     </div>
     <div class="mp-widget" id="${uid}">
-      <div class="mp-title">📍 How many stations do you want to place?</div>
+      ${csvNote}
+      <div class="mp-title">📍 How many new stations do you want to place?</div>
       <div class="mp-row">
         <label class="mp-lbl">Select number of stations: </label>
         <input class="mp-input" type="number" min="1" max="200" value="5" id="${uid}-count"/>
@@ -714,8 +811,8 @@ function logPopulation(population, index, label, layer, target) {
           <input type="file" id="${uid}-upload-pins" accept=".geojson,.json" style="display:none" onchange="uploadPinsFromWidget('${uid}', event)"/>
         </label>
       </div>
-      <div class="mp-placed">0 / ? monitors placed</div>
-      <button class="mp-calc-btn" disabled onclick="calculateNetwork('${uid}')">⬛ Calculate Network Coverage</button>
+      <div class="mp-placed">0 new placed + ${csvCount} existing = ${csvCount} total</div>
+      <button class="mp-calc-btn" ${csvCount < 2 ? 'disabled' : ''} onclick="calculateNetwork('${uid}')">⬛ Calculate Network Coverage</button>
       <div class="net-result" id="${uid}-result"></div>
     </div>`;
 
@@ -723,10 +820,9 @@ function logPopulation(population, index, label, layer, target) {
   entry.dataset.uid = uid;
   entry._target = target;
 
-  out.appendChild(entry); out.scrollTop = out.scrollHeight;
+  out.appendChild(entry); out.scrollTop = out.scrollHeight;  
 }
 
-// ── NEW FUNCTION: HANDLE GEOJSON PIN UPLOADS ───────────────────
 // ── NEW FUNCTION: HANDLE GEOJSON PIN UPLOADS ───────────────────
 function uploadPinsFromWidget(uid, event) {
   const file = event.target.files[0];
@@ -863,8 +959,11 @@ function clearMonitorPinsFromWidget(uid) {
   clearMonitorPins();
   const widget = document.getElementById(uid);
   if (widget) {
-    widget.querySelector('.mp-placed').textContent = '0 / ? monitors placed';
-    widget.querySelector('.mp-calc-btn').disabled = true;
+    const entry    = widget.closest('.log-entry');
+    const target   = entry ? entry._target : null;
+    const csvCount = (target && target.csvPins) ? target.csvPins.length : 0;
+    widget.querySelector('.mp-placed').textContent = `0 new placed + ${csvCount} existing = ${csvCount} total`;
+    widget.querySelector('.mp-calc-btn').disabled = csvCount < 2;
   }
   stopMonitorPlacement();
 }
@@ -873,47 +972,69 @@ function clearMonitorPinsFromWidget(uid) {
 function updateMonitorPlacementUI() {
   const widget = document.querySelector('.mp-widget[data-active]');
   if (!widget) return;
-  const placed = monitorPins.length;
-  const total  = targetMonitorCount;
-  widget.querySelector('.mp-placed').textContent = `${placed} / ${total} monitors placed`;
-  widget.querySelector('.mp-calc-btn').disabled = placed < 2;
+  const placed   = monitorPins.length;
+  const total    = targetMonitorCount;
+  const csvCount = (monitorTarget && monitorTarget.csvPins) ? monitorTarget.csvPins.length : 0;
+  const combined = placed + csvCount;
+  widget.querySelector('.mp-placed').textContent = `${placed} new placed + ${csvCount} existing = ${combined} total`;
+  widget.querySelector('.mp-calc-btn').disabled = combined < 2;
   const ind = document.getElementById('mode-indicator');
   if (placingMonitors) {
     ind.innerHTML = `📍 Place Monitor Mode<div class="hint">${placed}/${total} placed · click inside shape</div>`;
   }
+
+  return combined
 }
 
 // ── NETWORK ANALYSIS LOG ──────────────────────────────────────
 // Writes result into the widget's own .net-result placeholder (replaces on recalculate)
-function logNetworkAnalysis(n, avgDist, unionArea, shapeArea, ratio, uid) {
-  const ratioStr   = ratio !== null ? ratio.toFixed(1)+'%' : '—';
-  const ratioClass = ratio !== null && ratio >= 75 ? 'net-good' : ratio !== null && ratio >= 40 ? 'net-mid' : 'net-low';
+const num_monitors = updateMonitorPlacementUI();
+function logNetworkAnalysis(num_monitors, avgDist, unionArea, shapeArea, ratio, uid) {
+  const requiredMonitors = numMonitorsCpcb('spm', currentPopulation);
+  // or whichever pollutant you're using as the reference
+  const percentRequired = ((num_monitors / requiredMonitors) * 100).toFixed(0);
+  // 1. Calculate Individual Scores (0, 2, 5, 8, 10)
+  
+  // Metric 1: Coverage Ratio (Targeting 90+% as 10)
+  const scoreRatio = ratio >= 90 ? 10 : ratio >= 80 ? 9 : ratio >= 70 ? 8 : ratio >= 60 ? 7 : ratio >= 50 ? 6 : ratio >= 40 ? 5 : ratio >= 30 ? 4 : ratio >= 20 ? 3 : ratio >= 10 ? 2 :  1;
+  
+  // Metric 2: Avg Distance (Assuming <2 is ideal; lower is often better for density)
+  const scoreDist = avgDist < 2 ? 10 : avgDist < 3 ? 8 : avgDist < 5 ? 5 : 1;
+  
+  // Metric 3: Percent required monitors
+  const scorePct = percentRequired > 80 ? 10 : percentRequired > 60 ? 7 : percentRequired > 40 ? 5 : percentRequired > 20 ? 2 : percentRequired > 10 ? 1 :0;
+
+  const totalScore = scoreRatio + scoreDist + scorePct;
+  
+  // Determine color coding
+  const getScoreColor = (s) => s > 20 ? '#164D12' : s > 10 ? '#b84c00' : '#d11';
+  const totalColor = getScoreColor(totalScore);
+  const status = totalScore > 20 ? 'Good' : totalScore > 10 ? 'Okay' : 'Bad';
 
   const html = `
     <div class="net-result-inner">
-      <div class="net-result-header">
-        <span class="net-label-inline">📡 Network Analysis · ${n} stations</span>
+      <div class="net-result-header" style="border-bottom: 2px solid ${totalColor}; padding-bottom: 5px; margin-bottom: 10px;">
+        <span style="font-weight: bold; font-size: 1.1em;">📡 Network Score: ${totalScore}/30 (${status})</span>
       </div>
       <div class="net-grid">
         <div class="net-card">
-          <span class="net-metric-label">Avg. distance</span>
-          <span class="net-metric-val">${avgDist.toFixed(1)}</span>
-          <span class="net-metric-unit">km between stations</span>
+          <span class="net-metric-label">Avg. Distance</span>
+          <span class="net-metric-val">${avgDist.toFixed(1)}km</span>
+          <span class="net-metric-unit">Score: ${scoreDist}/10</span>
         </div>
         <div class="net-card">
-          <span class="net-metric-label">Area covered</span>
-          <span class="net-metric-val">${unionArea.toFixed(0)}</span>
-          <span class="net-metric-unit">km² (2 km radius, no overlap)</span>
+          <span class="net-metric-label">Representativeness</span>
+          <span class="net-metric-val">${ratio.toFixed(0)}%</span>
+          <span class="net-metric-unit">Score: ${scoreRatio}/10</span>
         </div>
-        <div class="net-card net-card-wide ${ratioClass}">
-          <span class="net-metric-label">Network representativeness</span>
-          <span class="net-metric-val">${ratioStr}</span>
-          <span class="net-metric-unit">of total shape area covered</span>
+        <div class="net-card">
+          <span class="net-metric-label">% required monitors</span>
+          <span class="net-metric-val">${percentRequired}%</span>
+          <span class="net-metric-unit"> Score: ${scorePct}/10</span>
         </div>
       </div>
     </div>`;
 
-  // Replace contents of the result placeholder inside this widget
   const placeholder = document.getElementById(uid + '-result');
   if (placeholder) {
     placeholder.innerHTML = html;
