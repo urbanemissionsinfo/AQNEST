@@ -681,7 +681,7 @@ function calculateNetwork(uid) {
 
   const avgDist   = avgNearestNeighborDistKm(pins);
   const unionArea = unionCircleAreaKm2(pins, 2);
-  const shapeArea = target.areaSqKm;
+  const shapeArea = target.weightedArea;
   const ratio     = shapeArea ? (unionArea / shapeArea) * 100 : null;
 
   logNetworkAnalysis(pins.length, avgDist, unionArea, shapeArea, ratio, uid);
@@ -967,7 +967,7 @@ function logPopulation(population, index, label, layer, target) {
   const formatted  = population.toLocaleString('en-IN');
   const pollutants = ['spm','so2','no2','co'];
   const pLabels    = { spm:'SPM', so2:'SO₂', no2:'NO₂', co:'CO' };
-  const areaStr    = target ? target.areaSqKm.toFixed(1)+' km²' : '—';
+  const areaStr    = target ? target.weightedArea.toFixed(1)+' km²' : '—';
 
   const monitorsHTML = pollutants.map(p => {
     const n = numMonitorsCpcb(p, population);
