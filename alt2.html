@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Air Quality Monitor Network Assessment Tool for India</title>
+  <!-- WhatsApp / Open Graph Social Media Meta Tags -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Air Quality Monitor Network Assessment Tool for India" />
+  <meta property="og:description" content="Calculate minimum air quality monitors required based on population datasets and evaluate network area coverage." />
+  <meta property="og:url" content="https://urbanemissionsinfo.github.io/MonitoringNeeds/" />
+  
+  <!-- The Thumbnail Image -->
+  <meta property="og:image" content="https://urbanemissionsinfo.github.io/MonitoringNeeds/data/station_area.png" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,700;0,800;1,400;1,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mapbox/togeojson@0.16.0/togeojson.min.js"></script>
+  <link rel="icon" href="https://urbanemissions.info/wp-content/uploads/2016/04/cropped-Big_Grid_512-164D12-32x32.png" type="image/jpeg">
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    How many monitors are needed? <span>Urban Emissions Info</span>
+  </div>
+  <div class="toolbar">
+    <button class="btn" id="btn-bbox" onclick="setMode('bbox')">⬜ Bounding Box</button>
+    <button class="btn" id="btn-poly" onclick="setMode('polygon')">⬡ Polygon</button>
+    <label class="btn" id="btn-upload" title="Upload a GeoJSON or KML file">
+      ⬆ Upload GeoJSON / KML
+      <input type="file" id="file-upload" accept=".geojson,.json,.kml" style="display:none" onchange="handleFileUpload(event)"/>
+    </label>
+    <div class="divider"></div>
+    <button class="btn danger" onclick="clearAll()">✕ Clear</button>
+  </div>
+</header>
+
+<div id="tif-status" class="tif-status">
+  <span class="tif-dot"></span>
+  <span id="tif-status-text">Loading LandScan raster…</span>
+</div>
+
+<div class="main">
+  <div class="map-wrap">
+    <div id="map"></div>
+    <button id="btn-finish-poly" class="floating-map-btn" style="display:none">✓ Finish Polygon</button>
+    <div class="mode-indicator" id="mode-indicator">
+      No mode selected
+      <div class="hint">Pick a tool above to start drawing</div>
+    </div>
+  </div>
+  <div class="side-panel">
+    <div class="panel-header">
+      Console Output
+      <span class="badge" id="log-count">0 shapes</span>
+    </div>
+    <div class="console-output" id="console-output">
+      <div class="empty-state">
+        <div class="icon">🗺️</div>
+        Draw a bounding box or polygon,<br/>
+        or upload a GeoJSON / KML file.<br/>
+        Population &amp; CPCB monitor<br/>requirements will appear here.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="script3.js"></script>
+</body>
+</html>
