@@ -956,3 +956,50 @@ label.btn:hover {
   letter-spacing: 0.07em;
   margin-bottom: 8px;
 }
+
+/* ── HEATMAP LEGEND OVERLAY ──────────────────────────────── */
+.heatmap-legend {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-family: 'Inter', sans-serif;
+    color: var(--text);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+    line-height: 1.4;
+    z-index: 1000;
+}
+
+.heatmap-legend .legend-title {
+    font-weight: 700;
+    font-size: 0.75rem;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.heatmap-legend .legend-subtitle {
+    font-size: 0.65rem;
+    color: var(--muted);
+    margin-bottom: 8px;
+}
+
+.heatmap-legend .legend-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.72rem;
+    margin-bottom: 4px;
+}
+
+.heatmap-legend .legend-row:last-child {
+    margin-bottom: 0;
+}
+
+.heatmap-legend i {
+    width: 16px;
+    height: 14px;
+    border-radius: 2px;
+    display: inline-block;
+    border: 1px solid rgba(0,0,0,0.15);
+}

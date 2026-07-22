@@ -1404,3 +1404,130 @@ function logError(msg, index) {
   entry.innerHTML = `<div class="log-type pop-label">⚠ NOTE · #${index}</div><div class="log-coords">${msg}</div>`;
   out.appendChild(entry); out.scrollTop = out.scrollHeight;
 }
+
+// ── POPULATION HEATMAP LAYER & LEGEND ─────────────────────────
+let heatmapLayer = null;
+let heatmapLegend = null;
+
+function togglePopulationHeatmap() {
+  const btn = document.getElementById('btn-heatmap');
+
+  // 1. If active: remove layer and legend (Toggle OFF)
+  if (heatmapLayer) {
+    map.removeLayer(heatmapLayer);
+    heatmapLayer = null;
+
+    if (heatmapLegend) {
+      map.removeControl(heatmapLegend);
+      heatmapLegend = null;
+    }
+
+    if (btn) btn.classList.remove('active');
+    return;
+  }
+
+  // 2. Ensure TIF is loaded
+  if (!tifData) {
+    alert("LandScan TIF is still loading or failed to load.");
+    return;
+  }
+
+  // 3. Create Heatmap GridLayer
+  heatmapLayer = L.gridLayer({ opacity: 0.6, zIndex: 5 });
+
+  heatmapLayer.createTile = function(coords, done) {
+    const tile = L.DomUtil.create('canvas', 'leaflet-tile');
+    const size = this.getTileSize();
+    tile.width = size.x;
+    tile.height = size.y;
+    const ctx = tile.getContext('2d');
+
+    const nwPoint = coords.scaleBy(size);
+    const { originX, originY, pixelW, pixelH, width, height } = tifMeta;
+
+    const imgData = ctx.createImageData(size.x, size.y);
+    const data = imgData.data;
+
+    for (let y = 0; y < size.y; y++) {
+      for (let x = 0; x < size.x; x++) {
+        const pt = nwPoint.add(L.point(x, y));
+        const latlng = map.unproject(pt, coords.z);
+
+        const col = Math.floor((latlng.lng - originX) / pixelW);
+        const row = Math.floor((originY - latlng.lat) / pixelH);
+
+        const idx = (y * size.x + x) * 4;
+
+        if (col >= 0 && col < width && row >= 0 && row < height) {
+          const val = tifData[row * width + col];
+
+          if (val > 0 && val !== tifNodata) {
+            let r, g, b, a;
+            if (val < 10)      { r=255; g=255; b=178; a=100; } // < 10
+            else if (val < 50) { r=254; g=204; b=92;  a=160; } // 10 - 50
+            else if (val < 200){ r=253; g=141; b=60;  a=200; } // 50 - 200
+            else if (val < 500){ r=240; g=59;  b=32;  a=230; } // 200 - 500
+            else               { r=189; g=0;   b=38;  a=255; } // > 500
+
+            data[idx] = r;
+            data[idx + 1] = g;
+            data[idx + 2] = b;
+            data[idx + 3] = a;
+          } else {
+            data[idx + 3] = 0;
+          }
+        } else {
+          data[idx + 3] = 0;
+        }
+      }
+    }
+
+    ctx.putImageData(imgData, 0, 0);
+    setTimeout(function() { done(null, tile); }, 0);
+    return tile;
+  };
+
+  heatmapLayer.addTo(map);
+
+  // 4. Create & Add Map Legend Control
+  heatmapLegend = L.control({ position: 'bottomright' });
+
+  heatmapLegend.onAdd = function() {
+    const div = L.DomUtil.create('div', 'heatmap-legend');
+    
+    // Header
+    div.innerHTML = `<div class="legend-title">Population Density</div>
+                     <div class="legend-subtitle">(per ~1 km² c)</div>`;
+
+    const grades = [0, 10, 50, 200, 500];
+    const colors = [
+      'rgba(255, 255, 178, 0.7)',
+      'rgba(254, 204, 92, 0.8)',
+      'rgba(253, 141, 60, 0.85)',
+      'rgba(240, 59, 32, 0.9)',
+      'rgba(189, 0, 38, 1.0)'
+    ];
+    const labels = ['< 10', '10 – 50', '50 – 200', '200 – 500', '500+'];
+
+    // Rows
+    grades.forEach((grade, i) => {
+      div.innerHTML += `
+        <div class="legend-row">
+          <i style="background:${colors[i]}"></i>
+          <span>${labels[i]}</span>
+        </div>`;
+    });
+
+    return div;
+  };
+
+  heatmapLegend.addTo(map);
+
+  if (btn) btn.classList.add('active');
+}
+
+// Attach listener if not attached already
+const heatmapBtn = document.getElementById('btn-heatmap');
+if (heatmapBtn) {
+  heatmapBtn.addEventListener('click', togglePopulationHeatmap);
+}
