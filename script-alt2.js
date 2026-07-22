@@ -37,63 +37,6 @@ let tifMeta   = {};
 let tifData   = null;
 let tifNodata = null;
 
-// ── CPCB CSV MONITOR SITES ────────────────────────────────────
-const CSV_PATH = 'data/cpcb_sites_202607.csv';
-let csvMonitors = [];   // [{lat, lng, site_id, location_name, city_name, state_name, marker}]
-
-// ── UPDATED CPCB CSV MONITOR SITES ────────────────────────────
-(async function loadCsvMonitors() {
-  try {
-    const rows = await d3.csv(CSV_PATH);
-    csvMonitors = rows.map(function(r) {
-      const lat = parseFloat(r.latitude);
-      const lng = parseFloat(r.longitude);
-      return {
-        lat: lat, lng: lng,
-        site_id: r.site_id, location_name: r.location_name,
-        city_name: r.city_name, district_name: r.district_name,
-        state_name: r.state_name, ncap_city_flag: r.ncap_city_flag,
-        marker: null,
-        buffer: null // Added to store the circle instance
-      };
-    }).filter(function(m) { return isFinite(m.lat) && isFinite(m.lng); });
-
-    csvMonitors.forEach(function(m) {
-      // 1. Create the circle buffer
-      const buffer = L.circle([m.lat, m.lng], {
-        radius: 2000,
-        color: '#1a56db', weight: 1,
-        fillColor: '#1a56db', fillOpacity: 0.1,
-        dashArray: '4 3'
-      }).addTo(map);
-
-      // 2. Create the marker
-      const marker = L.circleMarker([m.lat, m.lng], {
-        radius: 4, color: '#1a56db', weight: 1,
-        fillColor: '#1a56db', fillOpacity: 0.65
-      }).addTo(map);
-
-      marker.bindTooltip(
-        `${m.location_name || m.site_id}<br/>${m.city_name || ''}${m.state_name ? ', '+m.state_name : ''}`,
-        { direction: 'top', sticky: true }
-      );
-      
-      m.marker = marker;
-      m.buffer = buffer; // Store reference
-    });
-
-    // ... (rest of the console logging code remains same)
-  } catch (err) {
-    console.warn('[CSV] Could not load', CSV_PATH, ':', err.message);
-  }
-})();
-// Existing CSV monitors that fall inside a given target shape
-function csvMonitorsInTarget(target) {
-  return csvMonitors
-    .filter(function(m) { return isPointInTarget(m.lat, m.lng, target); })
-    .map(function(m) { return [m.lat, m.lng]; });
-}
-
 // ── DRAWING STATE ─────────────────────────────────────────────
 let mode        = null;
 let drawing     = false;
@@ -287,34 +230,6 @@ function computeWeightedAreaFromBbox(south, west, north, east) {
   return (cellArea * numUrb) + (0.1 * cellArea * numRur);
 }
 
-// Weighted population within a bbox: pop of cells >=500 + 10% of pop of cells <500
-function computeWeightedPopulationFromBbox(south, west, north, east) {
-  if (!tifData) return null;
-  const { originX, originY, pixelW, pixelH, width, height } = tifMeta;
-
-  const colMin = Math.max(0, Math.floor((west - originX) / pixelW));
-  const colMax = Math.min(width - 1, Math.ceil((east - originX) / pixelW));
-  const rowMin = Math.max(0, Math.floor((originY - north) / pixelH));
-  const rowMax = Math.min(height - 1, Math.ceil((originY - south) / pixelH));
-
-  if (colMin > colMax || rowMin > rowMax) return 0;
-
-  let popUrb = 0;
-  let popRur = 0;
-
-  for (let row = rowMin; row <= rowMax; row++) {
-    for (let col = colMin; col <= colMax; col++) {
-      const val = tifData[row * width + col];
-      if (val === tifNodata || val < 0) continue;
-
-      if (val >= 500) popUrb += val;
-      else popRur += val;
-    }
-  }
-
-  return popUrb + (0.1 * popRur);
-}
-
 function computeWeightedAreaFromRing(ring) {
   if (!tifData) return null;
   const { originX, originY, pixelW, pixelH, width, height } = tifMeta;
@@ -354,43 +269,6 @@ function computeWeightedAreaFromRing(ring) {
   const cellArea = 0.798; // km2
   return (cellArea * numUrb) + (0.1 * cellArea * numRur);
 }
-
-// Weighted population within a ring: pop of cells >=500 + 10% of pop of cells <500
-function computeWeightedPopulationFromRing(ring) {
-  if (!tifData) return null;
-  const { originX, originY, pixelW, pixelH, width, height } = tifMeta;
-
-  const lngs = ring.map(c => c[0]), lats = ring.map(c => c[1]);
-  const west = Math.min(...lngs), east = Math.max(...lngs);
-  const south = Math.min(...lats), north = Math.max(...lats);
-
-  const colMin = Math.max(0, Math.floor((west - originX) / pixelW));
-  const colMax = Math.min(width - 1, Math.ceil((east - originX) / pixelW));
-  const rowMin = Math.max(0, Math.floor((originY - north) / pixelH));
-  const rowMax = Math.min(height - 1, Math.ceil((originY - south) / pixelH));
-
-  if (colMin > colMax || rowMin > rowMax) return 0;
-
-  let popUrb = 0;
-  let popRur = 0;
-
-  for (let row = rowMin; row <= rowMax; row++) {
-    const pixLat = originY - (row + 0.5) * pixelH;
-    for (let col = colMin; col <= colMax; col++) {
-      const pixLng = originX + (col + 0.5) * pixelW;
-
-      if (!pointInPolygon(pixLng, pixLat, ring)) continue;
-
-      const val = tifData[row * width + col];
-      if (val === tifNodata || val < 0) continue;
-
-      if (val >= 500) popUrb += val;
-      else popRur += val;
-    }
-  }
-
-  return popUrb + (0.1 * popRur);
-}
 function computeWeightedAreaFromGeoJSON(geojson) {
   if (!tifData) return null;
   let total = 0;
@@ -420,38 +298,6 @@ function computeWeightedAreaFromGeoJSON(geojson) {
     processGeometry(geojson);
   }
   
-  return total;
-}
-
-function computeWeightedPopulationFromGeoJSON(geojson) {
-  if (!tifData) return null;
-  let total = 0;
-
-  function processGeometry(geom) {
-    if (!geom) return;
-    if (geom.type === 'Polygon') {
-      const pop = computeWeightedPopulationFromRing(geom.coordinates[0]);
-      if (pop) total += pop;
-    }
-    else if (geom.type === 'MultiPolygon') {
-      geom.coordinates.forEach(p => {
-        const pop = computeWeightedPopulationFromRing(p[0]);
-        if (pop) total += pop;
-      });
-    }
-    else if (geom.type === 'GeometryCollection') {
-      geom.geometries.forEach(processGeometry);
-    }
-  }
-
-  if (geojson.type === 'FeatureCollection') {
-    geojson.features.forEach(f => processGeometry(f.geometry));
-  } else if (geojson.type === 'Feature') {
-    processGeometry(geojson.geometry);
-  } else {
-    processGeometry(geojson);
-  }
-
   return total;
 }
 // Haversine distance in km between two [lat,lng] points
@@ -556,53 +402,6 @@ function unionCircleAreaKm2(pins, radiusKm) {
     }
   }
   return count * cellAreaKm2;
-}
-
-// Population covered by the union of N circles of radius R km at given [lat,lng] points.
-// Sums the raster population value of every LandScan pixel whose centre falls
-// within radiusKm of at least one pin (each pixel counted once).
-function circlesPopulation(pins, radiusKm) {
-  if (!tifData || pins.length === 0) return 0;
-  const { originX, originY, pixelW, pixelH, width, height } = tifMeta;
-
-  const lats = pins.map(p => p[0]), lngs = pins.map(p => p[1]);
-  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
-  const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
-
-  const dLat = radiusKm / 111.0;
-  const dLng = radiusKm / (111.0 * Math.cos((minLat+maxLat)/2 * Math.PI/180));
-
-  const south = minLat - dLat, north = maxLat + dLat;
-  const west  = minLng - dLng, east  = maxLng + dLng;
-
-  const colMin = Math.max(0, Math.floor((west - originX) / pixelW));
-  const colMax = Math.min(width - 1, Math.ceil((east - originX) / pixelW));
-  const rowMin = Math.max(0, Math.floor((originY - north) / pixelH));
-  const rowMax = Math.min(height - 1, Math.ceil((originY - south) / pixelH));
-
-  if (colMin > colMax || rowMin > rowMax) return 0;
-
-  let total = 0;
-  for (let row = rowMin; row <= rowMax; row++) {
-    const pixLat = originY - (row + 0.5) * pixelH;
-    for (let col = colMin; col <= colMax; col++) {
-      const pixLng = originX + (col + 0.5) * pixelW;
-
-      let covered = false;
-      for (let k = 0; k < pins.length; k++) {
-        if (haversineKm(pixLat, pixLng, pins[k][0], pins[k][1]) <= radiusKm) {
-          covered = true;
-          break;
-        }
-      }
-      if (!covered) continue;
-
-      const val = tifData[row * width + col];
-      if (val === tifNodata || val < 0) continue;
-      total += val;
-    }
-  }
-  return total;
 }
 
 // Average pairwise distance between all monitor pins
@@ -823,12 +622,10 @@ function calculateNetwork(uid) {
   const pins = csvPins.concat(placedPins);
   if (pins.length < 2) return;
 
-  const avgDist       = avgNearestNeighborDistKm(pins);
-  const unionArea     = unionCircleAreaKm2(pins, 2);
-  const shapeArea     = target.weightedArea;
-  const coveredPop    = circlesPopulation(pins, 2);
-  const weightedPop   = target.weightedPopulation;
-  const ratio         = weightedPop ? (coveredPop / weightedPop) * 100 : null;
+  const avgDist   = avgNearestNeighborDistKm(pins);
+  const unionArea = unionCircleAreaKm2(pins, 2);
+  const shapeArea = target.areaSqKm;
+  const ratio     = shapeArea ? (unionArea / shapeArea) * 100 : null;
 
   logNetworkAnalysis(pins.length, avgDist, unionArea, shapeArea, ratio, uid);
 }
@@ -886,9 +683,7 @@ function handleFileUpload(event) {
     const areaSqKm = ring ? geoJsonAreaKm2(geojson) : bboxAreaKm2(sw.lat, sw.lng, ne.lat, ne.lng);
     // NEW: Calculate weighted area
     const weightedArea = computeWeightedAreaFromGeoJSON(geojson);
-    const weightedPopulation = computeWeightedPopulationFromGeoJSON(geojson);
-    const target0 = { type: 'geojson', layer, ring, geojson, areaSqKm, weightedArea, weightedPopulation};
-    target0.csvPins = csvMonitorsInTarget(target0);
+    const target0 = { type: 'geojson', layer, ring, geojson, areaSqKm, weightedArea};
 
     const featureCount = geojson.features ? geojson.features.length : 1;
     const entry = document.createElement('div');
@@ -980,10 +775,8 @@ map.on('mouseup', function(e) {
   const areaSqKm = bboxAreaKm2(sw.lat, sw.lng, ne.lat, ne.lng);
   // NEW: Calculate weighted area
   const weightedArea = computeWeightedAreaFromBbox(sw.lat, sw.lng, ne.lat, ne.lng);
-  const weightedPopulation = computeWeightedPopulationFromBbox(sw.lat, sw.lng, ne.lat, ne.lng);
 
-  const target = { type:'bbox', layer: savedRect, areaSqKm, weightedArea, weightedPopulation};
-  target.csvPins = csvMonitorsInTarget(target);
+  const target = { type:'bbox', layer: savedRect, areaSqKm, weightedArea};
 
   const population = computePopulation(sw.lat, sw.lng, ne.lat, ne.lng);
   currentPopulation = population;
@@ -1033,9 +826,7 @@ function finishPolygon() {
   const areaSqKm = ringAreaKm2(ring);
   // NEW: Calculate weighted area
   const weightedArea = computeWeightedAreaFromRing(ring);
-  const weightedPopulation = computeWeightedPopulationFromRing(ring);
-  const target = { type:'polygon', layer: poly, ring, areaSqKm, weightedArea, weightedPopulation };
-  target.csvPins = csvMonitorsInTarget(target);
+  const target = { type:'polygon', layer: poly, ring, areaSqKm,weightedArea };
 
   const polyGeojson = { type:'Polygon', coordinates:[ring] };
   const population = computePopulationFromGeoJSON(polyGeojson);
@@ -1125,11 +916,6 @@ function logPopulation(population, index, label, layer, target) {
 
   // Unique id for this entry's placement widget
   const uid = `mp-${Date.now()}`;
-  const csvCount = target && target.csvPins ? target.csvPins.length : 0;
-  const csvNote = csvCount > 0
-    ? `<div class="sub-label">📡 ${csvCount} existing CPCB monitor${csvCount!==1?'s':''} found in this area</div>`
-    : `<div class="sub-label">📡 No existing CPCB monitors found in this area</div>`;
-
   const entry = document.createElement('div');
   entry.className = 'log-entry population';
   entry.innerHTML = `
@@ -1142,7 +928,6 @@ function logPopulation(population, index, label, layer, target) {
       <div class="monitors-grid">${monitorsHTML}</div>
     </div>
     <div class="mp-widget" id="${uid}">
-      ${csvNote}
       <div class="mp-title">📍 How many new stations do you want to place?</div>
       <div class="mp-row">
         <label class="mp-lbl">Select number of stations: </label>
@@ -1164,8 +949,8 @@ function logPopulation(population, index, label, layer, target) {
           <input type="file" id="${uid}-upload-pins" accept=".geojson,.json" style="display:none" onchange="uploadPinsFromWidget('${uid}', event)"/>
         </label>
       </div>
-      <div class="mp-placed">0 new placed + ${csvCount} existing = ${csvCount} total</div>
-      <button class="mp-calc-btn" ${csvCount < 2 ? 'disabled' : ''} onclick="calculateNetwork('${uid}')">⬛ Calculate Network Coverage</button>
+      <div class="mp-placed">0 new placed</div>
+      <button class="mp-calc-btn" onclick="calculateNetwork('${uid}')">⬛ Calculate Network Coverage</button>
       <div class="net-result" id="${uid}-result"></div>
     </div>`;
 
@@ -1314,9 +1099,6 @@ function clearMonitorPinsFromWidget(uid) {
   if (widget) {
     const entry    = widget.closest('.log-entry');
     const target   = entry ? entry._target : null;
-    const csvCount = (target && target.csvPins) ? target.csvPins.length : 0;
-    widget.querySelector('.mp-placed').textContent = `0 new placed + ${csvCount} existing = ${csvCount} total`;
-    widget.querySelector('.mp-calc-btn').disabled = csvCount < 2;
   }
   stopMonitorPlacement();
 }
@@ -1327,9 +1109,8 @@ function updateMonitorPlacementUI() {
   if (!widget) return;
   const placed   = monitorPins.length;
   const total    = targetMonitorCount;
-  const csvCount = (monitorTarget && monitorTarget.csvPins) ? monitorTarget.csvPins.length : 0;
-  const combined = placed + csvCount;
-  widget.querySelector('.mp-placed').textContent = `${placed} new placed + ${csvCount} existing = ${combined} total`;
+  const combined = placed;
+  widget.querySelector('.mp-placed').textContent = `${placed} new placed`;
   widget.querySelector('.mp-calc-btn').disabled = combined < 2;
   const ind = document.getElementById('mode-indicator');
   if (placingMonitors) {
@@ -1360,11 +1141,9 @@ function logNetworkAnalysis(num_monitors, avgDist, unionArea, shapeArea, ratio, 
   const totalScore = scoreRatio + scoreDist + scorePct;
   
   // Determine color coding
-  const getScoreColor = (s) => s > 22 ? '#164D12' : s > 15 ? '#81b800ff' : s > 7 ? '#ffa601ff' : '#d11';
+  const getScoreColor = (s) => s > 20 ? '#164D12' : s > 10 ? '#b84c00' : '#d11';
   const totalColor = getScoreColor(totalScore);
-  const status = totalScore > 22 ? 'Good | Meets requirements consistently' :
-   totalScore > 15 ? 'Can be better | Meets minimum standards' : 
-   totalScore > 7 ? 'Poor | Below expectations' : 'Inadequate | Fails minimum requirements';
+  const status = totalScore > 20 ? 'Good' : totalScore > 10 ? 'Okay' : 'Bad';
 
   const html = `
     <div class="net-result-inner">
