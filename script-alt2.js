@@ -29,7 +29,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 })();
 
 // ── TIF PATH ──────────────────────────────────────────────────
-const TIF_PATH = 'data/landscan-india-2024.tif';
+const TIF_PATH = 'data/landscan-india-2024-compressed.tif';
 
 // ── GEOTIFF STATE ─────────────────────────────────────────────
 let tifImage  = null;
