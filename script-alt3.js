@@ -536,19 +536,26 @@ function geoJsonAreaKm2(geojson) {
   return Math.abs(total);
 }
 
-// Union area of N circles of radius R km at given [lat,lng] points.
+// Union area of N circles of dynamic radius at given [lat,lng] points.
 // Uses a rasterised grid approach: sample the bounding box at ~200m resolution,
 // count grid cells inside at least one circle, multiply by cell area.
-function unionCircleAreaKm2(pins, radiusKm) {
+function unionCircleAreaKm2(pins) {
   if (pins.length === 0) return 0;
+
+  // Precompute dynamic radius for each pin based on local population
+  const pinData = pins.map(p => {
+    const pop = getPopulationAtPoint(p[0], p[1]);
+    return { lat: p[0], lng: p[1], r: pop > 5000 ? 0.5 : 2.0 };
+  });
 
   const lats = pins.map(p => p[0]), lngs = pins.map(p => p[1]);
   const minLat = Math.min(...lats), maxLat = Math.max(...lats);
   const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
 
-  // Expand bounding box by radiusKm in each direction (approx degrees)
-  const dLat = radiusKm / 111.0;
-  const dLng = radiusKm / (111.0 * Math.cos((minLat+maxLat)/2 * Math.PI/180));
+  // Expand bounding box by the maximum possible radius (2km) in each direction
+  const maxRadiusKm = 2.0; 
+  const dLat = maxRadiusKm / 111.0;
+  const dLng = maxRadiusKm / (111.0 * Math.cos((minLat+maxLat)/2 * Math.PI/180));
 
   const south = minLat - dLat, north = maxLat + dLat;
   const west  = minLng - dLng, east  = maxLng + dLng;
@@ -562,9 +569,9 @@ function unionCircleAreaKm2(pins, radiusKm) {
   let count = 0;
   for (let lat = south + stepLat/2; lat < north; lat += stepLat) {
     for (let lng = west + stepLng/2; lng < east; lng += stepLng) {
-      // Is this cell centre within radiusKm of ANY pin?
-      for (let k = 0; k < pins.length; k++) {
-        if (haversineKm(lat, lng, pins[k][0], pins[k][1]) <= radiusKm) {
+      // Is this cell centre within the specific radius of ANY pin?
+      for (let k = 0; k < pinData.length; k++) {
+        if (haversineKm(lat, lng, pinData[k].lat, pinData[k].lng) <= pinData[k].r) {
           count++;
           break;
         }
@@ -574,19 +581,26 @@ function unionCircleAreaKm2(pins, radiusKm) {
   return count * cellAreaKm2;
 }
 
-// Population covered by the union of N circles of radius R km at given [lat,lng] points.
+// Population covered by the union of N circles of dynamic radius at given [lat,lng] points.
 // Sums the raster population value of every LandScan pixel whose centre falls
-// within radiusKm of at least one pin (each pixel counted once).
-function circlesPopulation(pins, radiusKm) {
+// within the specific radius of at least one pin (each pixel counted once).
+function circlesPopulation(pins) {
   if (!tifData || pins.length === 0) return 0;
   const { originX, originY, pixelW, pixelH, width, height } = tifMeta;
+
+  // Precompute dynamic radius for each pin based on local population
+  const pinData = pins.map(p => {
+    const pop = getPopulationAtPoint(p[0], p[1]);
+    return { lat: p[0], lng: p[1], r: pop > 5000 ? 0.5 : 2.0 };
+  });
 
   const lats = pins.map(p => p[0]), lngs = pins.map(p => p[1]);
   const minLat = Math.min(...lats), maxLat = Math.max(...lats);
   const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
 
-  const dLat = radiusKm / 111.0;
-  const dLng = radiusKm / (111.0 * Math.cos((minLat+maxLat)/2 * Math.PI/180));
+  const maxRadiusKm = 2.0;
+  const dLat = maxRadiusKm / 111.0;
+  const dLng = maxRadiusKm / (111.0 * Math.cos((minLat+maxLat)/2 * Math.PI/180));
 
   const south = minLat - dLat, north = maxLat + dLat;
   const west  = minLng - dLng, east  = maxLng + dLng;
@@ -605,8 +619,8 @@ function circlesPopulation(pins, radiusKm) {
       const pixLng = originX + (col + 0.5) * pixelW;
 
       let covered = false;
-      for (let k = 0; k < pins.length; k++) {
-        if (haversineKm(pixLat, pixLng, pins[k][0], pins[k][1]) <= radiusKm) {
+      for (let k = 0; k < pinData.length; k++) {
+        if (haversineKm(pixLat, pixLng, pinData[k].lat, pinData[k].lng) <= pinData[k].r) {
           covered = true;
           break;
         }
@@ -844,9 +858,9 @@ function calculateNetwork(uid) {
   if (pins.length < 2) return;
 
   const avgDist       = avgNearestNeighborDistKm(pins);
-  const unionArea     = unionCircleAreaKm2(pins, 2);
+  const unionArea     = unionCircleAreaKm2(pins);
   const shapeArea     = target.weightedArea;
-  const coveredPop    = circlesPopulation(pins, 2);
+  const coveredPop    = circlesPopulation(pins);
   const weightedPop   = target.weightedPopulation;
   const ratio         = weightedPop ? (coveredPop / weightedPop) * 100 : null;
 
