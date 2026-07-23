@@ -1463,10 +1463,10 @@ function togglePopulationHeatmap() {
 
           if (val > 0 && val !== tifNodata) {
             let r, g, b, a;
-            if (val < 10)      { r=255; g=255; b=178; a=100; } // < 10
-            else if (val < 50) { r=254; g=204; b=92;  a=160; } // 10 - 50
-            else if (val < 200){ r=253; g=141; b=60;  a=200; } // 50 - 200
-            else if (val < 500){ r=240; g=59;  b=32;  a=230; } // 200 - 500
+            if (val < 20)      { r=255; g=255; b=178; a=100; } // < 10
+            else if (val < 200) { r=254; g=204; b=92;  a=160; } // 10 - 50
+            else if (val < 500){ r=253; g=141; b=60;  a=200; } // 50 - 200
+            else if (val < 1000){ r=240; g=59;  b=32;  a=230; } // 200 - 500
             else               { r=189; g=0;   b=38;  a=255; } // > 500
 
             data[idx] = r;
@@ -1499,7 +1499,7 @@ function togglePopulationHeatmap() {
     div.innerHTML = `<div class="legend-title">Population Density</div>
                      <div class="legend-subtitle">(per ~1 km² c)</div>`;
 
-    const grades = [0, 10, 50, 200, 500];
+    const grades = [0, 20, 200, 500, 1000];
     const colors = [
       'rgba(255, 255, 178, 0.7)',
       'rgba(254, 204, 92, 0.8)',
@@ -1507,7 +1507,7 @@ function togglePopulationHeatmap() {
       'rgba(240, 59, 32, 0.9)',
       'rgba(189, 0, 38, 1.0)'
     ];
-    const labels = ['< 10', '10 – 50', '50 – 200', '200 – 500', '500+'];
+    const labels = ['< 20', '20 – 200', '200 – 500', '500 – 1000', '1000+'];
 
     // Rows
     grades.forEach((grade, i) => {

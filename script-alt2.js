@@ -1278,7 +1278,7 @@ function togglePopulationHeatmap() {
     div.innerHTML = `<div class="legend-title">Population Density</div>
                      <div class="legend-subtitle">(per ~1 km² cell)</div>`;
 
-    const grades = [0, 10, 50, 200, 500];
+    const grades = [0, 20, 200, 500, 1000];
     const colors = [
       'rgba(255, 255, 178, 0.7)',
       'rgba(254, 204, 92, 0.8)',
@@ -1286,7 +1286,7 @@ function togglePopulationHeatmap() {
       'rgba(240, 59, 32, 0.9)',
       'rgba(189, 0, 38, 1.0)'
     ];
-    const labels = ['< 10', '10 – 50', '50 – 200', '200 – 500', '500+'];
+    const labels = ['< 20', '20 – 200', '200 – 500', '500 – 1000', '1000+'];
 
     // Rows
     grades.forEach((grade, i) => {
