@@ -1127,8 +1127,8 @@ function logPopulation(population, index, label, layer, target) {
   const uid = `mp-${Date.now()}`;
   const csvCount = target && target.csvPins ? target.csvPins.length : 0;
   const csvNote = csvCount > 0
-    ? `<div class="sub-label">📡 ${csvCount} existing CPCB monitor${csvCount!==1?'s':''} found in this area</div>`
-    : `<div class="sub-label">📡 No existing CPCB monitors found in this area</div>`;
+    ? `<div class="sub-label">📡 ${csvCount} monitor${csvCount!==1?'s':''} found operational in this area</div>`
+    : `<div class="sub-label">📡 No monitors found operational in this area</div>`;
 
   const entry = document.createElement('div');
   entry.className = 'log-entry population';
@@ -1378,7 +1378,7 @@ function logNetworkAnalysis(num_monitors, avgDist, unionArea, shapeArea, ratio, 
           <span class="net-metric-unit">Score: ${scoreDist}/10</span>
         </div>
         <div class="net-card">
-          <span class="net-metric-label">Representativeness</span>
+          <span class="net-metric-label">Population Represented</span>
           <span class="net-metric-val">${ratio.toFixed(0)}%</span>
           <span class="net-metric-unit">Score: ${scoreRatio}/10</span>
         </div>

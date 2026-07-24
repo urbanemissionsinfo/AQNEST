@@ -1157,7 +1157,7 @@ function logNetworkAnalysis(num_monitors, avgDist, unionArea, shapeArea, ratio, 
           <span class="net-metric-unit">Score: ${scoreDist}/10</span>
         </div>
         <div class="net-card">
-          <span class="net-metric-label">Representativeness</span>
+          <span class="net-metric-label">Population Represented</span>
           <span class="net-metric-val">${ratio.toFixed(0)}%</span>
           <span class="net-metric-unit">Score: ${scoreRatio}/10</span>
         </div>

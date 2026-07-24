@@ -73,7 +73,7 @@ async function loadCsvMonitors() {
 
     csvMonitors.forEach(function(m) {
         const localPop = getPopulationAtPoint(m.lat, m.lng);
-        const dynamicRadius = localPop > 5000 ? 500 : 2000;
+        const dynamicRadius = localPop > 8000 ? 1000 : 2000;
       // 1. Create the circle buffer
       const buffer = L.circle([m.lat, m.lng], {
         radius: dynamicRadius,
@@ -545,7 +545,7 @@ function unionCircleAreaKm2(pins) {
   // Precompute dynamic radius for each pin based on local population
   const pinData = pins.map(p => {
     const pop = getPopulationAtPoint(p[0], p[1]);
-    return { lat: p[0], lng: p[1], r: pop > 5000 ? 0.5 : 2.0 };
+    return { lat: p[0], lng: p[1], r: pop > 8000 ? 1 : 2.0 };
   });
 
   const lats = pins.map(p => p[0]), lngs = pins.map(p => p[1]);
@@ -591,7 +591,7 @@ function circlesPopulation(pins) {
   // Precompute dynamic radius for each pin based on local population
   const pinData = pins.map(p => {
     const pop = getPopulationAtPoint(p[0], p[1]);
-    return { lat: p[0], lng: p[1], r: pop > 5000 ? 0.5 : 2.0 };
+    return { lat: p[0], lng: p[1], r: pop > 8000 ? 1 : 2.0 };
   });
 
   const lats = pins.map(p => p[0]), lngs = pins.map(p => p[1]);
@@ -749,7 +749,7 @@ map.on('click', function(e) {
 
     // Calculate dynamic radius based on population
     const localPop = getPopulationAtPoint(latlng.lat, latlng.lng);
-    const dynamicRadius = localPop > 5000 ? 500 : 2000;
+    const dynamicRadius = localPop > 8000 ? 1000 : 2000;
 
     // Dynamic circle
     const circle = L.circle(latlng, {
@@ -1161,8 +1161,8 @@ function logPopulation(population, index, label, layer, target) {
   const uid = `mp-${Date.now()}`;
   const csvCount = target && target.csvPins ? target.csvPins.length : 0;
   const csvNote = csvCount > 0
-    ? `<div class="sub-label">📡 ${csvCount} existing CPCB monitor${csvCount!==1?'s':''} found in this area</div>`
-    : `<div class="sub-label">📡 No existing CPCB monitors found in this area</div>`;
+    ? `<div class="sub-label">📡 ${csvCount} monitor${csvCount!==1?'s':''} found operational in this area</div>`
+    : `<div class="sub-label">📡 No monitors found operational in this area</div>`;
 
   const entry = document.createElement('div');
   entry.className = 'log-entry population';
@@ -1396,9 +1396,9 @@ function logNetworkAnalysis(num_monitors, avgDist, unionArea, shapeArea, ratio, 
   // Determine color coding
   const getScoreColor = (s) => s > 22 ? '#164D12' : s > 15 ? '#81b800ff' : s > 7 ? '#ffa601ff' : '#d11';
   const totalColor = getScoreColor(totalScore);
-  const status = totalScore > 22 ? 'Good | Meets requirements consistently' :
-   totalScore > 15 ? 'Can be better | Meets minimum standards' : 
-   totalScore > 7 ? 'Poor | Below expectations' : 'Inadequate | Fails minimum requirements';
+  const status = totalScore > 22 ? 'Meets requirements consistently' :
+   totalScore > 15 ? 'Meets minimum requirements' : 
+   totalScore > 7 ? 'Below expectations' : 'Fails minimum requirements';
 
   const html = `
     <div class="net-result-inner">
@@ -1412,7 +1412,7 @@ function logNetworkAnalysis(num_monitors, avgDist, unionArea, shapeArea, ratio, 
           <span class="net-metric-unit">Score: ${scoreDist}/10</span>
         </div>
         <div class="net-card">
-          <span class="net-metric-label">Representativeness</span>
+          <span class="net-metric-label">Population Represented</span>
           <span class="net-metric-val">${ratio.toFixed(0)}%</span>
           <span class="net-metric-unit">Score: ${scoreRatio}/10</span>
         </div>
