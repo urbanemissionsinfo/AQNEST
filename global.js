@@ -146,6 +146,20 @@ let polyPoints  = [];
 let polyLine    = null;
 let polyMarkers = [];
 
+// ── GET POPULATION AT SINGLE POINT ────────────────────────────
+function getPopulationAtPoint(lat, lng) {
+  if (!tifData) return 0;
+  
+  const { originX, originY, pixelW, pixelH, width, height } = tifMeta;
+  const col = Math.floor((lng - originX) / pixelW);
+  const row = Math.floor((originY - lat) / pixelH);
+  
+  if (col < 0 || col >= width || row < 0 || row >= height) return 0;
+  
+  const val = tifData[row * width + col];
+  return (val === tifNodata || val < 0) ? 0 : val;
+}
+
 // ── MONITOR PLACEMENT STATE ───────────────────────────────────
 let placingMonitors   = false;
 let monitorTarget     = null;   // { type:'bbox'|'polygon'|'geojson', layer, geojson, areaSqKm }
@@ -313,8 +327,7 @@ function computePopulationFromGeoJSON(geojson) {
   return total;
 }
 
-// ── AREA CALCULATIONS ─────────────────────────────────────────
-// ── WEIGHTED URBAN AREA CALCULATIONS ──────────────────────────
+// ── WEIGHTED URBAN AREA and POPULATION CALCULATIONS ──────────────────────────
 
 function computeWeightedAreaFromBbox(south, west, north, east) {
   if (!tifData) return null;
@@ -345,6 +358,34 @@ function computeWeightedAreaFromBbox(south, west, north, east) {
   
   const cellArea = 0.798; // km2 - matching your Python spatial resolution assumption
   return (cellArea * numUrb) + (0.1 * cellArea * numRur);
+}
+
+// Weighted population within a bbox: pop of cells >=500 + 10% of pop of cells <500
+function computeWeightedPopulationFromBbox(south, west, north, east) {
+  if (!tifData) return null;
+  const { originX, originY, pixelW, pixelH, width, height } = tifMeta;
+
+  const colMin = Math.max(0, Math.floor((west - originX) / pixelW));
+  const colMax = Math.min(width - 1, Math.ceil((east - originX) / pixelW));
+  const rowMin = Math.max(0, Math.floor((originY - north) / pixelH));
+  const rowMax = Math.min(height - 1, Math.ceil((originY - south) / pixelH));
+
+  if (colMin > colMax || rowMin > rowMax) return 0;
+
+  let popUrb = 0;
+  let popRur = 0;
+
+  for (let row = rowMin; row <= rowMax; row++) {
+    for (let col = colMin; col <= colMax; col++) {
+      const val = tifData[row * width + col];
+      if (val === tifNodata || val < 0) continue;
+
+      if (val >= 500) popUrb += val;
+      else popRur += val;
+    }
+  }
+
+  return popUrb + (0.1 * popRur);
 }
 
 function computeWeightedAreaFromRing(ring) {
@@ -386,6 +427,43 @@ function computeWeightedAreaFromRing(ring) {
   const cellArea = 0.798; // km2
   return (cellArea * numUrb) + (0.1 * cellArea * numRur);
 }
+
+// Weighted population within a ring: pop of cells >=500 + 10% of pop of cells <500
+function computeWeightedPopulationFromRing(ring) {
+  if (!tifData) return null;
+  const { originX, originY, pixelW, pixelH, width, height } = tifMeta;
+
+  const lngs = ring.map(c => c[0]), lats = ring.map(c => c[1]);
+  const west = Math.min(...lngs), east = Math.max(...lngs);
+  const south = Math.min(...lats), north = Math.max(...lats);
+
+  const colMin = Math.max(0, Math.floor((west - originX) / pixelW));
+  const colMax = Math.min(width - 1, Math.ceil((east - originX) / pixelW));
+  const rowMin = Math.max(0, Math.floor((originY - north) / pixelH));
+  const rowMax = Math.min(height - 1, Math.ceil((originY - south) / pixelH));
+
+  if (colMin > colMax || rowMin > rowMax) return 0;
+
+  let popUrb = 0;
+  let popRur = 0;
+
+  for (let row = rowMin; row <= rowMax; row++) {
+    const pixLat = originY - (row + 0.5) * pixelH;
+    for (let col = colMin; col <= colMax; col++) {
+      const pixLng = originX + (col + 0.5) * pixelW;
+
+      if (!pointInPolygon(pixLng, pixLat, ring)) continue;
+
+      const val = tifData[row * width + col];
+      if (val === tifNodata || val < 0) continue;
+
+      if (val >= 500) popUrb += val;
+      else popRur += val;
+    }
+  }
+
+  return popUrb + (0.1 * popRur);
+}
 function computeWeightedAreaFromGeoJSON(geojson) {
   if (!tifData) return null;
   let total = 0;
@@ -415,6 +493,38 @@ function computeWeightedAreaFromGeoJSON(geojson) {
     processGeometry(geojson);
   }
   
+  return total;
+}
+
+function computeWeightedPopulationFromGeoJSON(geojson) {
+  if (!tifData) return null;
+  let total = 0;
+
+  function processGeometry(geom) {
+    if (!geom) return;
+    if (geom.type === 'Polygon') {
+      const pop = computeWeightedPopulationFromRing(geom.coordinates[0]);
+      if (pop) total += pop;
+    }
+    else if (geom.type === 'MultiPolygon') {
+      geom.coordinates.forEach(p => {
+        const pop = computeWeightedPopulationFromRing(p[0]);
+        if (pop) total += pop;
+      });
+    }
+    else if (geom.type === 'GeometryCollection') {
+      geom.geometries.forEach(processGeometry);
+    }
+  }
+
+  if (geojson.type === 'FeatureCollection') {
+    geojson.features.forEach(f => processGeometry(f.geometry));
+  } else if (geojson.type === 'Feature') {
+    processGeometry(geojson.geometry);
+  } else {
+    processGeometry(geojson);
+  }
+
   return total;
 }
 // Haversine distance in km between two [lat,lng] points
@@ -486,16 +596,23 @@ function geoJsonAreaKm2(geojson) {
 // Union area of N circles of radius R km at given [lat,lng] points.
 // Uses a rasterised grid approach: sample the bounding box at ~200m resolution,
 // count grid cells inside at least one circle, multiply by cell area.
-function unionCircleAreaKm2(pins, radiusKm) {
+function unionCircleAreaKm2(pins) {
   if (pins.length === 0) return 0;
+
+  // Precompute dynamic radius for each pin based on local population
+  const pinData = pins.map(p => {
+    const pop = getPopulationAtPoint(p[0], p[1]);
+    return { lat: p[0], lng: p[1], r: pop > 8000 ? 1 : 2.0 };
+  });
 
   const lats = pins.map(p => p[0]), lngs = pins.map(p => p[1]);
   const minLat = Math.min(...lats), maxLat = Math.max(...lats);
   const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
 
-  // Expand bounding box by radiusKm in each direction (approx degrees)
-  const dLat = radiusKm / 111.0;
-  const dLng = radiusKm / (111.0 * Math.cos((minLat+maxLat)/2 * Math.PI/180));
+  // Expand bounding box by the maximum possible radius (2km) in each direction
+  const maxRadiusKm = 2.0; 
+  const dLat = maxRadiusKm / 111.0;
+  const dLng = maxRadiusKm / (111.0 * Math.cos((minLat+maxLat)/2 * Math.PI/180));
 
   const south = minLat - dLat, north = maxLat + dLat;
   const west  = minLng - dLng, east  = maxLng + dLng;
@@ -509,9 +626,9 @@ function unionCircleAreaKm2(pins, radiusKm) {
   let count = 0;
   for (let lat = south + stepLat/2; lat < north; lat += stepLat) {
     for (let lng = west + stepLng/2; lng < east; lng += stepLng) {
-      // Is this cell centre within radiusKm of ANY pin?
-      for (let k = 0; k < pins.length; k++) {
-        if (haversineKm(lat, lng, pins[k][0], pins[k][1]) <= radiusKm) {
+      // Is this cell centre within the specific radius of ANY pin?
+      for (let k = 0; k < pinData.length; k++) {
+        if (haversineKm(lat, lng, pinData[k].lat, pinData[k].lng) <= pinData[k].r) {
           count++;
           break;
         }
@@ -519,6 +636,60 @@ function unionCircleAreaKm2(pins, radiusKm) {
     }
   }
   return count * cellAreaKm2;
+}
+
+// Population covered by the union of N circles of dynamic radius at given [lat,lng] points.
+// Sums the raster population value of every LandScan pixel whose centre falls
+// within the specific radius of at least one pin (each pixel counted once).
+function circlesPopulation(pins) {
+  if (!tifData || pins.length === 0) return 0;
+  const { originX, originY, pixelW, pixelH, width, height } = tifMeta;
+
+  // Precompute dynamic radius for each pin based on local population
+  const pinData = pins.map(p => {
+    const pop = getPopulationAtPoint(p[0], p[1]);
+    return { lat: p[0], lng: p[1], r: pop > 8000 ? 1 : 2.0 };
+  });
+
+  const lats = pins.map(p => p[0]), lngs = pins.map(p => p[1]);
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+
+  const maxRadiusKm = 2.0;
+  const dLat = maxRadiusKm / 111.0;
+  const dLng = maxRadiusKm / (111.0 * Math.cos((minLat+maxLat)/2 * Math.PI/180));
+
+  const south = minLat - dLat, north = maxLat + dLat;
+  const west  = minLng - dLng, east  = maxLng + dLng;
+
+  const colMin = Math.max(0, Math.floor((west - originX) / pixelW));
+  const colMax = Math.min(width - 1, Math.ceil((east - originX) / pixelW));
+  const rowMin = Math.max(0, Math.floor((originY - north) / pixelH));
+  const rowMax = Math.min(height - 1, Math.ceil((originY - south) / pixelH));
+
+  if (colMin > colMax || rowMin > rowMax) return 0;
+
+  let total = 0;
+  for (let row = rowMin; row <= rowMax; row++) {
+    const pixLat = originY - (row + 0.5) * pixelH;
+    for (let col = colMin; col <= colMax; col++) {
+      const pixLng = originX + (col + 0.5) * pixelW;
+
+      let covered = false;
+      for (let k = 0; k < pinData.length; k++) {
+        if (haversineKm(pixLat, pixLng, pinData[k].lat, pinData[k].lng) <= pinData[k].r) {
+          covered = true;
+          break;
+        }
+      }
+      if (!covered) continue;
+
+      const val = tifData[row * width + col];
+      if (val === tifNodata || val < 0) continue;
+      total += val;
+    }
+  }
+  return total;
 }
 
 // Average pairwise distance between all monitor pins
@@ -633,9 +804,13 @@ map.on('click', function(e) {
     });
     const marker = L.marker(latlng, { icon, draggable: true }).addTo(map);
 
-    // 2 km circle
+    // Calculate dynamic radius based on population
+    const localPop = getPopulationAtPoint(latlng.lat, latlng.lng);
+    const dynamicRadius = localPop > 8000 ? 1000 : 2000;
+
+    // Dynamic circle
     const circle = L.circle(latlng, {
-      radius: 2000,
+      radius: dynamicRadius,
       color: '#164D12', weight: 1.2,
       fillColor: '#164D12', fillOpacity: 0.08,
       dashArray: '4 3'
@@ -740,9 +915,11 @@ function calculateNetwork(uid) {
   if (pins.length < 2) return;
 
   const avgDist   = avgNearestNeighborDistKm(pins);
-  const unionArea = unionCircleAreaKm2(pins, 2);
-  const shapeArea = target.areaSqKm;
-  const ratio     = shapeArea ? (unionArea / shapeArea) * 100 : null;
+  const unionArea = unionCircleAreaKm2(pins);
+  const shapeArea     = target.weightedArea;
+  const coveredPop    = circlesPopulation(pins);
+  const weightedPop   = target.weightedPopulation;
+  const ratio         = weightedPop ? (coveredPop / weightedPop) * 100 : null;
 
   logNetworkAnalysis(pins.length, avgDist, unionArea, shapeArea, ratio, uid);
 }
@@ -800,7 +977,8 @@ function handleFileUpload(event) {
     const areaSqKm = ring ? geoJsonAreaKm2(geojson) : bboxAreaKm2(sw.lat, sw.lng, ne.lat, ne.lng);
     // NEW: Calculate weighted area
     const weightedArea = computeWeightedAreaFromGeoJSON(geojson);
-    const target0 = { type: 'geojson', layer, ring, geojson, areaSqKm, weightedArea};
+    const weightedPopulation = computeWeightedPopulationFromGeoJSON(geojson);
+    const target0 = { type: 'geojson', layer, ring, geojson, areaSqKm, weightedArea,weightedPopulation};
 
     const featureCount = geojson.features ? geojson.features.length : 1;
     const entry = document.createElement('div');
@@ -892,8 +1070,9 @@ map.on('mouseup', function(e) {
   const areaSqKm = bboxAreaKm2(sw.lat, sw.lng, ne.lat, ne.lng);
   // NEW: Calculate weighted area
   const weightedArea = computeWeightedAreaFromBbox(sw.lat, sw.lng, ne.lat, ne.lng);
+  const weightedPopulation = computeWeightedPopulationFromBbox(sw.lat, sw.lng, ne.lat, ne.lng);
 
-  const target = { type:'bbox', layer: savedRect, areaSqKm, weightedArea};
+  const target = { type:'bbox', layer: savedRect, areaSqKm, weightedArea, weightedPopulation};
 
   const population = computePopulation(sw.lat, sw.lng, ne.lat, ne.lng);
   currentPopulation = population;
@@ -943,7 +1122,8 @@ function finishPolygon() {
   const areaSqKm = ringAreaKm2(ring);
   // NEW: Calculate weighted area
   const weightedArea = computeWeightedAreaFromRing(ring);
-  const target = { type:'polygon', layer: poly, ring, areaSqKm,weightedArea };
+  const weightedPopulation = computeWeightedPopulationFromRing(ring);
+  const target = { type:'polygon', layer: poly, ring, areaSqKm,weightedArea,weightedPopulation};
 
   const polyGeojson = { type:'Polygon', coordinates:[ring] };
   const population = computePopulationFromGeoJSON(polyGeojson);
@@ -1238,6 +1418,7 @@ function updateMonitorPlacementUI() {
 }
 
 // ── NETWORK ANALYSIS LOG ──────────────────────────────────────
+// ── NETWORK ANALYSIS LOG ──────────────────────────────────────
 // Writes result into the widget's own .net-result placeholder (replaces on recalculate)
 const num_monitors = updateMonitorPlacementUI();
 function logNetworkAnalysis(num_monitors, avgDist, unionArea, shapeArea, ratio, uid) {
@@ -1258,9 +1439,11 @@ function logNetworkAnalysis(num_monitors, avgDist, unionArea, shapeArea, ratio, 
   const totalScore = scoreRatio + scoreDist + scorePct;
   
   // Determine color coding
-  const getScoreColor = (s) => s > 20 ? '#164D12' : s > 10 ? '#b84c00' : '#d11';
+  const getScoreColor = (s) => s > 22 ? '#164D12' : s > 15 ? '#81b800ff' : s > 7 ? '#ffa601ff' : '#d11';
   const totalColor = getScoreColor(totalScore);
-  const status = totalScore > 20 ? 'Good' : totalScore > 10 ? 'Okay' : 'Bad';
+  const status = totalScore > 22 ? 'Meets requirements consistently' :
+   totalScore > 15 ? 'Meets minimum requirements' : 
+   totalScore > 7 ? 'Below expectations' : 'Fails minimum requirements';
 
   const html = `
     <div class="net-result-inner">
@@ -1291,14 +1474,6 @@ function logNetworkAnalysis(num_monitors, avgDist, unionArea, shapeArea, ratio, 
     placeholder.innerHTML = html;
     placeholder.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
-}
-
-function logError(msg, index) {
-  const out = document.getElementById('console-output');
-  const entry = document.createElement('div');
-  entry.className = 'log-entry pop-error';
-  entry.innerHTML = `<div class="log-type pop-label">⚠ NOTE · #${index}</div><div class="log-coords">${msg}</div>`;
-  out.appendChild(entry); out.scrollTop = out.scrollHeight;
 }
 
 // ── POPULATION HEATMAP LAYER & LEGEND ─────────────────────────

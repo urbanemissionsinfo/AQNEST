@@ -269,8 +269,7 @@ function computePopulationFromGeoJSON(geojson) {
   return total;
 }
 
-// ── AREA CALCULATIONS ─────────────────────────────────────────
-// ── WEIGHTED URBAN AREA CALCULATIONS ──────────────────────────
+// ── WEIGHTED URBAN AREA and POPULATION CALCULATIONS ──────────────────────────
 
 function computeWeightedAreaFromBbox(south, west, north, east) {
   if (!tifData) return null;
