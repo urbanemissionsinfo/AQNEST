@@ -46,11 +46,11 @@
       <option value="c_america">🌎 Central America</option>
     </select>
     
-    <button id="btn-heatmap" class="btn">🔥 Toggle Population Heatmap</button>
-    <button class="btn" id="btn-bbox" onclick="setMode('bbox')">⬜ Bounding Box</button>
-    <button class="btn" id="btn-poly" onclick="setMode('polygon')">⬡ Polygon</button>
-    <label class="btn" id="btn-upload" title="Upload a GeoJSON or KML file">
-      ⬆ Upload GeoJSON / KML
+    <button id="btn-heatmap" class="btn">🔥 Toggle Population</button>
+    <button class="btn" id="btn-bbox" onclick="setMode('bbox')">⬜ Draw Bounding Box</button>
+    <button class="btn" id="btn-poly" onclick="setMode('polygon')">⬡ Draw Polygon</button>
+    <label class="btn" id="btn-upload" title="Upload a GeoJSON or KML Admin file">
+      ⬆ Upload Admin Layer (GeoJSON/KML)
       <input type="file" id="file-upload" accept=".geojson,.json,.kml" style="display:none" onchange="handleFileUpload(event)"/>
     </label>
     <div class="divider"></div>

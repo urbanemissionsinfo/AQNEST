@@ -1145,7 +1145,7 @@ function logPopulation(population, index, label, layer, target) {
       ${csvNote}
       <div class="mp-title">📍 How many new stations do you want to place?</div>
       <div class="mp-row">
-        <label class="mp-lbl">Select number of stations: </label>
+        <label class="mp-lbl"> </label>
         <input class="mp-input" type="number" min="1" max="200" value="5" id="${uid}-count"/>
       </div>
       

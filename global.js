@@ -723,26 +723,27 @@ function avgNearestNeighborDistKm(pins) {
 
 // ── MONITOR PLACEMENT ─────────────────────────────────────────
 
-function activateMonitorPlacement(target, count) {
-  // Clear any existing pins
-  clearMonitorPins();
+function activateMonitorPlacement(target, count, keepExisting = false) {
+  // Only clear pins if we aren't appending/resuming
+  if (!keepExisting) {
+    clearMonitorPins();
+  }
+  
   placingMonitors  = true;
   monitorTarget    = target;
   targetMonitorCount = count;
 
   const ind = document.getElementById('mode-indicator');
   ind.classList.add('active');
-  
-  // Enhanced visual feedback in the indicator
   ind.style.backgroundColor = '#164D12';
   ind.style.color = 'white';
   
-  ind.innerHTML = `📍 Place Monitor Mode<div class="hint">Click inside shape to place ${count} monitors</div>`;
+  const remaining = count - monitorPins.length;
+  ind.innerHTML = `📍 Place Monitor Mode<div class="hint">Click inside shape to place ${remaining} more monitor(s)</div>`;
   document.body.classList.add('drawing');
 
   updateMonitorPlacementUI();
 }
-
 function clearMonitorPins() {
   monitorPins.forEach(m => map.removeLayer(m));
   monitorCircles.forEach(c => map.removeLayer(c));
@@ -1227,7 +1228,7 @@ function logPopulation(population, index, label, layer, target) {
     <div class="mp-widget" id="${uid}">
       <div class="mp-title">📍 How many new stations do you want to place?</div>
       <div class="mp-row">
-        <label class="mp-lbl">Select number of stations: </label>
+        <label class="mp-lbl"></label>
         <input class="mp-input" type="number" min="1" max="200" value="5" id="${uid}-count"/>
       </div>
       
@@ -1382,14 +1383,15 @@ function startPlacingFromWidget(uid) {
   if (!target) return;
   const count  = parseInt(document.getElementById(`${uid}-count`).value, 10) || 1;
 
-  // Store reference to this widget so updateMonitorPlacementUI can find it
+  // Store reference to this widget
   document.querySelectorAll('.mp-widget').forEach(w => w.removeAttribute('data-active'));
   document.getElementById(uid).setAttribute('data-active', '1');
 
-  clearMonitorPins();
-  activateMonitorPlacement(target, count);
-}
+  // If we already have pins and requested total count >= current pins, KEEP THEM
+  const keepExisting = monitorPins.length > 0 && count >= monitorPins.length;
 
+  activateMonitorPlacement(target, count, keepExisting);
+}
 function clearMonitorPinsFromWidget(uid) {
   clearMonitorPins();
   const widget = document.getElementById(uid);
