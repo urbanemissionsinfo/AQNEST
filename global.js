@@ -723,7 +723,7 @@ function avgNearestNeighborDistKm(pins) {
 
 // ── MONITOR PLACEMENT ─────────────────────────────────────────
 
-function activateMonitorPlacement(target, count, keepExisting = false) {
+function activateMonitorPlacement(target, totalCount, keepExisting = false) {
   // Only clear pins if we aren't appending/resuming
   if (!keepExisting) {
     clearMonitorPins();
@@ -731,7 +731,7 @@ function activateMonitorPlacement(target, count, keepExisting = false) {
   
   placingMonitors  = true;
   monitorTarget    = target;
-  targetMonitorCount = count;
+  targetMonitorCount = totalCount;
 
   const ind = document.getElementById('mode-indicator');
   ind.classList.add('active');
@@ -1365,8 +1365,8 @@ function uploadPinsFromWidget(uid, event) {
 
     // Sync input count and UI
     targetMonitorCount = monitorPins.length;
-    const countInput = document.getElementById(`${uid}-count`);
-    if (countInput) countInput.value = targetMonitorCount;
+    //const countInput = document.getElementById(`${uid}-count`);
+    //if (countInput) countInput.value = targetMonitorCount;
 
     updateMonitorPlacementUI();
 
@@ -1381,16 +1381,20 @@ function startPlacingFromWidget(uid) {
   const entry  = document.getElementById(uid).closest('.log-entry');
   const target = entry ? entry._target : null;
   if (!target) return;
-  const count  = parseInt(document.getElementById(`${uid}-count`).value, 10) || 1;
+  // Read how many NEW pins the user wants to add manually
+  const additionalCount = parseInt(document.getElementById(`${uid}-count`).value, 10) || 1;
+  // Set the target total = existing pins on map + new pins requested
+  const totalTarget = monitorPins.length + additionalCount;
+  //const count  = parseInt(document.getElementById(`${uid}-count`).value, 10) || 1;
 
   // Store reference to this widget
   document.querySelectorAll('.mp-widget').forEach(w => w.removeAttribute('data-active'));
   document.getElementById(uid).setAttribute('data-active', '1');
 
   // If we already have pins and requested total count >= current pins, KEEP THEM
-  const keepExisting = monitorPins.length > 0 && count >= monitorPins.length;
+  //const keepExisting = monitorPins.length > 0 && count >= monitorPins.length;
 
-  activateMonitorPlacement(target, count, keepExisting);
+  activateMonitorPlacement(target, totalTarget, true);
 }
 function clearMonitorPinsFromWidget(uid) {
   clearMonitorPins();
