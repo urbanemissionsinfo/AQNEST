@@ -2,10 +2,12 @@ let currentPopulation = null;
 // ── MAP INIT ──────────────────────────────────────────────────
 const map = L.map('map', { center: [22.5, 82.0], zoom: 5, zoomControl: true });
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© OpenStreetMap contributors',
+
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+  attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012',
   maxZoom: 18
 }).addTo(map);
+
 // ── INDIA OFFICIAL BOUNDARY OVERLAY ──────────────────────────
 (async function loadIndiaBoundary() {
   try {
