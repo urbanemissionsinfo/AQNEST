@@ -27,7 +27,7 @@ const REGIONS = {
     center: [25.0, 75.0],
     zoom: 4,
     tifPath: 'data/landscan-southasia-2024-compressed.tif',
-    boundaryPath: 'data/southasia_boundary.geojson'
+    boundaryPath: 'data/sasia_boundary.geojson'
   },
   central_asia: {
     name: 'Central Asia',
