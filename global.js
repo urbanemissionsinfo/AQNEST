@@ -82,7 +82,7 @@ async function switchRegion(regionKey) {
   await loadTif(regionKey);
 }
 // ── TIF PATH ──────────────────────────────────────────────────
-let currentRegionKey = 'india';
+let currentRegionKey = 'south_asia';
 let TIF_PATH = REGIONS[currentRegionKey].tifPath;
 let currentBoundaryLayer = null;
 
@@ -641,6 +641,14 @@ function unionCircleAreaKm2(pins) {
 // Population covered by the union of N circles of dynamic radius at given [lat,lng] points.
 // Sums the raster population value of every LandScan pixel whose centre falls
 // within the specific radius of at least one pin (each pixel counted once).
+function pixelIntersectsCircle(pixSouth, pixNorth, pixWest, pixEast, pinLat, pinLng, radiusKm) {
+  // Find the closest point on the rectangular pixel box to the circle center (pin)
+  const closestLat = Math.max(pixSouth, Math.min(pinLat, pixNorth));
+  const closestLng = Math.max(pixWest, Math.min(pinLng, pixEast));
+
+  // If the distance from the pin to this closest point is <= radius, they overlap!
+  return haversineKm(pinLat, pinLng, closestLat, closestLng) <= radiusKm;
+}
 function circlesPopulation(pins) {
   if (!tifData || pins.length === 0) return 0;
   const { originX, originY, pixelW, pixelH, width, height } = tifMeta;
@@ -668,16 +676,20 @@ function circlesPopulation(pins) {
   const rowMax = Math.min(height - 1, Math.ceil((originY - south) / pixelH));
 
   if (colMin > colMax || rowMin > rowMax) return 0;
-
   let total = 0;
   for (let row = rowMin; row <= rowMax; row++) {
-    const pixLat = originY - (row + 0.5) * pixelH;
+    // Top (north) and bottom (south) latitude of current pixel
+    const pixNorth = originY - row * pixelH;
+    const pixSouth = originY - (row + 1) * pixelH;
+
     for (let col = colMin; col <= colMax; col++) {
-      const pixLng = originX + (col + 0.5) * pixelW;
+      // Left (west) and right (east) longitude of current pixel
+      const pixWest = originX + col * pixelW;
+      const pixEast = originX + (col + 1) * pixelW;
 
       let covered = false;
       for (let k = 0; k < pinData.length; k++) {
-        if (haversineKm(pixLat, pixLng, pinData[k].lat, pinData[k].lng) <= pinData[k].r) {
+        if (pixelIntersectsCircle(pixSouth, pixNorth, pixWest, pixEast, pinData[k].lat, pinData[k].lng, pinData[k].r)) {
           covered = true;
           break;
         }
@@ -690,8 +702,29 @@ function circlesPopulation(pins) {
     }
   }
   return total;
-}
 
+  // let total = 0;
+  // for (let row = rowMin; row <= rowMax; row++) {
+  //   const pixLat = originY - (row + 0.5) * pixelH;
+  //   for (let col = colMin; col <= colMax; col++) {
+  //     const pixLng = originX + (col + 0.5) * pixelW;
+
+  //     let covered = false;
+  //     for (let k = 0; k < pinData.length; k++) {
+  //       if (haversineKm(pixLat, pixLng, pinData[k].lat, pinData[k].lng) <= pinData[k].r) {
+  //         covered = true;
+  //         break;
+  //       }
+  //     }
+  //     if (!covered) continue;
+
+  //     const val = tifData[row * width + col];
+  //     if (val === tifNodata || val < 0) continue;
+  //     total += val;
+  //   }
+  // }
+  // return total;
+}
 // Average pairwise distance between all monitor pins
 function avgPairwiseDistKm(pins) {
   if (pins.length < 2) return 0;
