@@ -228,35 +228,129 @@ function setTifStatus(state, text) {
 }
 
 // ── CPCB MONITOR CALCULATION ──────────────────────────────────
-function numMonitorsCpcb(pollutant, population) {
+// ── CALCULATE UCF FROM ARRAY OF CELL VALUES ───────────────────
+function computeUCFFromCellValues(cellValues) {
+  if (!cellValues || cellValues.length === 0) return 1.0;
+
+  const totalNonZeroCells = cellValues.length;
+  console.log(totalNonZeroCells);
+  const totalPop = cellValues.reduce((a, b) => a + b, 0);
+  const avgDensity = totalPop / totalNonZeroCells;
+
+  let countHighDensity = 0; // Cells > Avg Density
+  let countUrban500 = 0;    // Cells > 500
+
+  for (let i = 0; i < totalNonZeroCells; i++) {
+    const val = cellValues[i];
+    if (val > avgDensity) countHighDensity++;
+    if (val > 500) countUrban500++;
+  }
+
+  const hdf = countHighDensity / totalNonZeroCells;
+  const uf  = countUrban500 / totalNonZeroCells;
+
+  // Avoid division by zero if there are no urban cells (> 500)
+  if (uf === 0) return 1.0;
+
+  return 1 + (hdf / uf);
+}
+
+// ── GET NON-ZERO CELLS FROM TARGET SHAPE ──────────────────────
+function getNonZeroCellsFromTarget(target) {
+  if (!tifData || !target) return [];
+  const { originX, originY, pixelW, pixelH, width, height } = tifMeta;
+  const cellValues = [];
+
+  // Determine boundary bounds
+  let west, east, south, north;
+
+  if (target.type === 'bbox') {
+    const b = target.layer.getBounds();
+    south = b.getSouth(); north = b.getNorth();
+    west = b.getWest();   east = b.getEast();
+  } else if (target.type === 'geojson') {
+    // Use the full layer bounds (all features/polygons/rings), not just
+    // the first ring extracted for the legacy point-in-polygon fallback.
+    const b = target.layer.getBounds();
+    south = b.getSouth(); north = b.getNorth();
+    west = b.getWest();   east = b.getEast();
+  } else if (target.ring) {
+    const lngs = target.ring.map(c => c[0]), lats = target.ring.map(c => c[1]);
+    west = Math.min(...lngs); east = Math.max(...lngs);
+    south = Math.min(...lats); north = Math.max(...lats);
+  } else {
+    return [];
+  }
+
+  const colMin = Math.max(0, Math.floor((west - originX) / pixelW));
+  const colMax = Math.min(width - 1, Math.ceil((east - originX) / pixelW));
+  const rowMin = Math.max(0, Math.floor((originY - north) / pixelH));
+  const rowMax = Math.min(height - 1, Math.ceil((originY - south) / pixelH));
+
+  for (let row = rowMin; row <= rowMax; row++) {
+    const pixLat = originY - (row + 0.5) * pixelH;
+    for (let col = colMin; col <= colMax; col++) {
+      const pixLng = originX + (col + 0.5) * pixelW;
+
+      // Check spatial inclusion if it's polygon/geojson
+      if (target.type !== 'geojson' && target.ring && !pointInPolygon(pixLng, pixLat, target.ring)) continue;
+      if (target.type === 'geojson' && !isPointInTarget(pixLat, pixLng, target)) continue;
+
+      const val = tifData[row * width + col];
+      if (val !== tifNodata && val > 0) {
+        cellValues.push(val);
+      }
+    }
+  }
+
+  return cellValues;
+}
+
+// ── COMPUTE UCF FOR ANY TARGET SHAPE ──────────────────────────
+function computeUCF(target) {
+  const cellValues = getNonZeroCellsFromTarget(target);
+  return computeUCFFromCellValues(cellValues);
+}
+// ── CPCB MONITOR CALCULATION WITH URBAN CORRECTION FACTOR ─────
+function numMonitorsCpcb(pollutant, population, ucf = 1.0) {
   let num = [];
   if (pollutant === 'spm') {
     num = [4];
-    if (population < 100000) return num.reduce((a,b)=>a+b,0);
+    if (population < 100000) {
+      return Math.round(num.reduce((a,b)=>a+b,0) * ucf);
+    }
     num.push(population > 1000000 ? Math.floor(4+0.6*900000/100000)+1 : Math.floor(4+0.6*(population-100000)/100000)+1);
     num.push(population > 5000000 ? Math.floor(7.5+0.25*4000000/100000)+1 : Math.floor(7.5+0.25*(population-1000000)/100000)+1);
     if (population > 5000000) num.push(Math.floor(12+0.16*(population-5000000)/100000)+1);
   }
   if (pollutant === 'so2') {
     num = [3];
-    if (population < 100000) return num.reduce((a,b)=>a+b,0);
+    if (population < 100000) {
+      return Math.round(num.reduce((a,b)=>a+b,0));
+    }
     num.push(population > 1000000 ? Math.floor(2.5+0.5*900000/100000)+1 : Math.floor(2.5+0.5*(population-100000)/100000)+1);
     num.push(population > 10000000 ? Math.floor(6+0.15*9000000/100000)+1 : Math.floor(6+0.15*(population-1000000)/100000)+1);
     if (population > 10000000) num.push(20);
   }
   if (pollutant === 'no2') {
     num = [4];
-    if (population < 100000) return num.reduce((a,b)=>a+b,0);
+    if (population < 100000) {
+      return Math.round(num.reduce((a,b)=>a+b,0));
+    }
     num.push(population > 1000000 ? Math.floor(4+0.6*900000/100000)+1 : Math.floor(4+0.6*(population-100000)/100000)+1);
     if (population > 1000000) num.push(10);
   }
   if (pollutant === 'co') {
     num = [1];
-    if (population < 100000) return num.reduce((a,b)=>a+b,0);
+    if (population < 100000) {
+      return Math.round(num.reduce((a,b)=>a+b,0));
+    }
     num.push(population > 5000000 ? Math.floor(1+0.15*4900000/100000)+1 : Math.floor(1+0.15*(population-100000)/100000)+1);
     if (population > 5000000) num.push(Math.floor(6+0.05*(population-5000000)/100000)+1);
   }
-  return num.reduce((a,b)=>a+b,0);
+
+  const baseCount = num.reduce((a, b) => a + b, 0);
+  return Math.round(baseCount * ucf);
 }
 
 // ── POPULATION FROM BBOX ──────────────────────────────────────
@@ -948,8 +1042,8 @@ function calculateNetwork(uid) {
   const pins = csvPins.concat(placedPins);
   if (pins.length < 2) return;
 
-  const avgDist   = avgNearestNeighborDistKm(pins);
-  const unionArea = unionCircleAreaKm2(pins);
+  const avgDist       = avgNearestNeighborDistKm(pins);
+  const unionArea     = unionCircleAreaKm2(pins);
   const shapeArea     = target.weightedArea;
   const coveredPop    = circlesPopulation(pins);
   const weightedPop   = target.weightedPopulation;
@@ -1240,9 +1334,18 @@ function logPopulation(population, index, label, layer, target) {
   const pLabels    = { spm:'PM', so2:'SO₂', no2:'NO₂', co:'CO' };
   const areaStr    = target ? target.areaSqKm.toFixed(1)+' km²' : '—';
 
+  // Calculate UCF for the target shape
+  const ucf = target ? computeUCF(target) : 1.0;
+  if (target) target.ucf = ucf; // Store on target for later reference
+
   const monitorsHTML = pollutants.map(p => {
-    const n = numMonitorsCpcb(p, population);
-    return `<div class="monitor-card"><span class="monitor-pollutant">${pLabels[p]}</span><span class="monitor-val">${n}</span></div>`;
+    const n = numMonitorsCpcb(p, population, ucf);
+    const backgroundstations = Number(1)+Number((0.05*n).toFixed(0));
+    return `<div class="monitor-card">
+    <span class="monitor-pollutant">${pLabels[p]}</span>
+    <span class="monitor-val">${n}</span> 
+    <span class="monitor-unit">Background stations:${backgroundstations}</span> 
+    </div>`;
   }).join('');
 
   // Unique id for this entry's placement widget
@@ -1460,7 +1563,11 @@ function updateMonitorPlacementUI() {
 // Writes result into the widget's own .net-result placeholder (replaces on recalculate)
 const num_monitors = updateMonitorPlacementUI();
 function logNetworkAnalysis(num_monitors, avgDist, unionArea, shapeArea, ratio, uid) {
-  const requiredMonitors = numMonitorsCpcb('spm', currentPopulation);
+  const widget = document.getElementById(uid);
+  const entry  = widget ? widget.closest('.log-entry') : null;
+  const target = (entry && entry._target) ? entry._target : monitorTarget;
+  const ucf    = target && target.ucf ? target.ucf : 1.0;
+  const requiredMonitors = numMonitorsCpcb('spm', currentPopulation, ucf);
   // or whichever pollutant you're using as the reference
   const percentRequired = ((num_monitors / requiredMonitors) * 100).toFixed(0);
   // 1. Calculate Individual Scores (0, 2, 5, 8, 10)
