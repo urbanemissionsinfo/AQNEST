@@ -1189,7 +1189,7 @@ function logPopulation(population, index, label, layer, target) {
 
   const monitorsHTML = pollutants.map(p => {
     const n = numMonitorsCpcb(p, population);
-    return `<div class="monitor-card"><span class="monitor-pollutant">${pLabels[p]}</span><span class="monitor-val">${n}</span><span class="monitor-unit">stations</span></div>`;
+    return `<div class="monitor-card"><span class="monitor-pollutant">${pLabels[p]}</span><span class="monitor-val">${n}</span></div>`;
   }).join('');
 
   // Unique id for this entry's placement widget
@@ -1206,7 +1206,7 @@ function logPopulation(population, index, label, layer, target) {
     <span class="sub-label"><a href="https://landscan.ornl.gov/">LANDSCAN GLOBAL 2024</a></span>
     <div class="log-coords">
       <span class="pop-big">${millions} Millions \n${areaStr}</span>
-      <span class="monitors-label">Min. monitors required</span><span class="sub-label">CPCB guidelines</span>
+      <span class="monitors-label">Min. monitors required</span><span class="sub-label">Source: CPCB guidelines (2003)</span>
 
       <div class="monitors-grid">${monitorsHTML}</div>
     </div>
@@ -1419,12 +1419,21 @@ function logNetworkAnalysis(num_monitors, avgDist, unionArea, shapeArea, ratio, 
   
   // Metric 1: Coverage Ratio (Targeting 90+% as 10)
   const scoreRatio = ratio >= 90 ? 10 : ratio >= 80 ? 9 : ratio >= 70 ? 8 : ratio >= 60 ? 7 : ratio >= 50 ? 6 : ratio >= 40 ? 5 : ratio >= 30 ? 4 : ratio >= 20 ? 3 : ratio >= 10 ? 2 :  1;
-  
+  const status_scoreRatio = scoreRatio > 8 ? 'Meets requirements consistently' :
+   scoreRatio > 6 ? 'Meets minimum requirements' : 
+   scoreRatio > 3 ? 'Below expectations' : 'Fails minimum requirements';
+
   // Metric 2: Avg Distance (Assuming <2 is ideal; lower is often better for density)
   const scoreDist = avgDist < 2 ? 10 : avgDist < 2.5 ? 9 : avgDist < 3 ? 8 : avgDist < 3.5 ? 7 : avgDist < 4 ? 6 : avgDist < 5 ? 5 :avgDist < 6 ? 4 : 1;
-  
+  const status_scoreDist = scoreDist > 8 ? 'Meets requirements consistently' :
+   scoreDist > 6 ? 'Meets minimum requirements' : 
+   scoreDist > 3 ? 'Below expectations' : 'Fails minimum requirements';
+
   // Metric 3: Percent required monitors
   const scorePct = percentRequired > 80 ? 10 : percentRequired > 70 ? 7 : percentRequired > 60 ? 6 : percentRequired > 50 ? 5 : percentRequired > 40 ? 4 : percentRequired > 30 ? 3 : percentRequired > 20 ? 2 : percentRequired > 10 ? 1 :0;
+  const status_scorePct = scorePct > 8 ? 'Meets requirements consistently' :
+   scorePct > 6 ? 'Meets minimum requirements' : 
+   scorePct > 3 ? 'Below expectations' : 'Fails minimum requirements';
 
   const totalScore = scoreRatio + scoreDist + scorePct;
   
@@ -1438,23 +1447,23 @@ function logNetworkAnalysis(num_monitors, avgDist, unionArea, shapeArea, ratio, 
   const html = `
     <div class="net-result-inner">
       <div class="net-result-header" style="border-bottom: 2px solid ${totalColor}; padding-bottom: 5px; margin-bottom: 10px;">
-        <span style="font-weight: bold; font-size: 1.1em;">📡 Network Score: ${totalScore}/30 (${status})</span>
+        <span style="font-weight: bold; font-size: 1.1em;">📡 Overall Network Score: ${totalScore}/30 (${status})</span>
       </div>
       <div class="net-grid">
         <div class="net-card">
           <span class="net-metric-label">Avg. Distance</span>
           <span class="net-metric-val">${avgDist.toFixed(1)}km</span>
-          <span class="net-metric-unit">Score: ${scoreDist}/10</span>
+          <span class="net-metric-unit">Score: ${scoreDist}/10 (${status_scoreDist})</span>
         </div>
         <div class="net-card">
           <span class="net-metric-label">Population Represented</span>
           <span class="net-metric-val">${ratio.toFixed(0)}%</span>
-          <span class="net-metric-unit">Score: ${scoreRatio}/10</span>
+          <span class="net-metric-unit">Score: ${scoreRatio}/10 (${status_scoreRatio})</span>
         </div>
         <div class="net-card">
           <span class="net-metric-label">% required monitors</span>
           <span class="net-metric-val">${percentRequired}%</span>
-          <span class="net-metric-unit"> Score: ${scorePct}/10</span>
+          <span class="net-metric-unit"> Score: ${scorePct}/10 (${status_scorePct})</span>
         </div>
       </div>
     </div>`;
