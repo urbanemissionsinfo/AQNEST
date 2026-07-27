@@ -1520,30 +1520,30 @@ function logNetworkAnalysis(num_monitors, avgDist, unionArea, shapeArea, ratio, 
   
   // Metric 1: Coverage Ratio (Targeting 90+% as 10)
   const scoreRatio = ratio >= 90 ? 10 : ratio >= 80 ? 9 : ratio >= 70 ? 8 : ratio >= 60 ? 7 : ratio >= 50 ? 6 : ratio >= 40 ? 5 : ratio >= 30 ? 4 : ratio >= 20 ? 3 : ratio >= 10 ? 2 :  1;
-  const status_scoreRatio = scoreRatio > 8 ? 'Meets requirements consistently' :
-   scoreRatio > 6 ? 'Meets minimum requirements' : 
-   scoreRatio > 3 ? 'Below expectations' : 'Fails minimum requirements';
+  const status_scoreRatio = scoreRatio >= 8 ? 'Meets requirements consistently' :
+   scoreRatio >= 6 ? 'Meets minimum requirements' : 
+   scoreRatio >= 3 ? 'Below expectations' : 'Fails minimum requirements';
 
   // Metric 2: Avg Distance (Assuming <2 is ideal; lower is often better for density)
   const scoreDist = avgDist < 2 ? 10 : avgDist < 2.5 ? 9 : avgDist < 3 ? 8 : avgDist < 3.5 ? 7 : avgDist < 4 ? 6 : avgDist < 5 ? 5 :avgDist < 6 ? 4 : 1;
-  const status_scoreDist = scoreDist > 8 ? 'Meets requirements consistently' :
-   scoreDist > 6 ? 'Meets minimum requirements' : 
-   scoreDist > 3 ? 'Below expectations' : 'Fails minimum requirements';
+  const status_scoreDist = scoreDist >= 8 ? 'Meets requirements consistently' :
+   scoreDist >= 6 ? 'Meets minimum requirements' : 
+   scoreDist >= 3 ? 'Below expectations' : 'Fails minimum requirements';
 
   // Metric 3: Percent required monitors
   const scorePct = percentRequired > 80 ? 10 : percentRequired > 70 ? 7 : percentRequired > 60 ? 6 : percentRequired > 50 ? 5 : percentRequired > 40 ? 4 : percentRequired > 30 ? 3 : percentRequired > 20 ? 2 : percentRequired > 10 ? 1 :0;
-  const status_scorePct = scorePct > 8 ? 'Meets requirements consistently' :
-   scorePct > 6 ? 'Meets minimum requirements' : 
-   scorePct > 3 ? 'Below expectations' : 'Fails minimum requirements';
+  const status_scorePct = scorePct >= 8 ? 'Meets requirements consistently' :
+   scorePct >= 6 ? 'Meets minimum requirements' : 
+   scorePct >= 3 ? 'Below expectations' : 'Fails minimum requirements';
 
   const totalScore = scoreRatio + scoreDist + scorePct;
   
   // Determine color coding
-  const getScoreColor = (s) => s > 22 ? '#164D12' : s > 15 ? '#81b800ff' : s > 7 ? '#ffa601ff' : '#d11';
+  const getScoreColor = (s) => s >= 22 ? '#164D12' : s >= 15 ? '#81b800ff' : s >= 7 ? '#ffa601ff' : '#d11';
   const totalColor = getScoreColor(totalScore);
-  const status = totalScore > 22 ? 'Meets requirements consistently' :
-   totalScore > 15 ? 'Meets minimum requirements' : 
-   totalScore > 7 ? 'Below expectations' : 'Fails minimum requirements';
+  const status = totalScore >= 22 ? 'Meets requirements consistently' :
+   totalScore >= 15 ? 'Meets minimum requirements' : 
+   totalScore >= 7 ? 'Below expectations' : 'Fails minimum requirements';
 
   const html = `
     <div class="net-result-inner">
