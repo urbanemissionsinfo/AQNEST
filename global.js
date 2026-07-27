@@ -1550,7 +1550,7 @@ function updateMonitorPlacementUI() {
   const total    = targetMonitorCount;
   const combined = placed;
   widget.querySelector('.mp-placed').textContent = `${placed} new placed`;
-  widget.querySelector('.mp-calc-btn').disabled = combined < 2;
+  widget.querySelector('.mp-calc-btn').disabled = combined < 1;
   const ind = document.getElementById('mode-indicator');
   if (placingMonitors) {
     ind.innerHTML = `📍 Place Monitor Mode<div class="hint">${placed}/${total} placed · click inside shape</div>`;

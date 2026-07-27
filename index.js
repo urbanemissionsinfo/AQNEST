@@ -838,7 +838,7 @@ function updateMonitorPlacementUI() {
   const total  = targetMonitorCount;
   entry.querySelector('.mp-placed').textContent = `${placed} / ${total} monitors placed`;
   const calcBtn = entry.querySelector('.mp-calc-btn');
-  calcBtn.disabled = placed < 2;
+  calcBtn.disabled = placed < 1;
   // Update hint in indicator
   const ind = document.getElementById('mode-indicator');
   if (placingMonitors) {
@@ -1331,7 +1331,7 @@ function logPopulation(population, index, label, layer, target) {
         </label>
       </div>
       <div class="mp-placed">0 new placed + ${csvCount} existing = ${csvCount} total</div>
-      <button class="mp-calc-btn" ${csvCount < 2 ? 'disabled' : ''} onclick="calculateNetwork('${uid}')">⬛ Calculate Network Coverage</button>
+      <button class="mp-calc-btn" ${csvCount < 1 ? 'disabled' : ''} onclick="calculateNetwork('${uid}')">⬛ Calculate Network Coverage</button>
       <div class="net-result" id="${uid}-result"></div>
     </div>`;
 
