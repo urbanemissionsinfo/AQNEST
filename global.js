@@ -821,7 +821,7 @@ function circlesPopulation(pins) {
 }
 // Average pairwise distance between all monitor pins
 function avgPairwiseDistKm(pins) {
-  if (pins.length < 2) return 0;
+  if (pins.length < 2) return NaN;
   let total = 0, pairs = 0;
   for (let i = 0; i < pins.length; i++)
     for (let j = i+1; j < pins.length; j++) {
@@ -832,7 +832,7 @@ function avgPairwiseDistKm(pins) {
 }
 
 function avgNearestNeighborDistKm(pins) {
-  if (pins.length < 2) return 0;
+  if (pins.length < 2) return NaN;
   let sumMinDistances = 0;
   for (let i = 0; i < pins.length; i++) {
     let minDist = Infinity;
@@ -895,7 +895,7 @@ function updateMonitorPlacementUI() {
   const total  = targetMonitorCount;
   entry.querySelector('.mp-placed').textContent = `${placed} / ${total} monitors placed`;
   const calcBtn = entry.querySelector('.mp-calc-btn');
-  calcBtn.disabled = placed < 2;
+  calcBtn.disabled = placed < 1;
   // Update hint in indicator
   const ind = document.getElementById('mode-indicator');
   if (placingMonitors) {
@@ -1040,7 +1040,7 @@ function calculateNetwork(uid) {
     : [];
 
   const pins = csvPins.concat(placedPins);
-  if (pins.length < 2) return;
+  if (pins.length < 1) return;
 
   const avgDist       = avgNearestNeighborDistKm(pins);
   const unionArea     = unionCircleAreaKm2(pins);
@@ -1579,8 +1579,10 @@ function logNetworkAnalysis(num_monitors, avgDist, unionArea, shapeArea, ratio, 
    scoreRatio >= 3 ? 'Below expectations' : 'Fails minimum requirements';
 
   // Metric 2: Avg Distance (Assuming <2 is ideal; lower is often better for density)
-  const scoreDist = avgDist < 2 ? 10 : avgDist < 2.5 ? 9 : avgDist < 3 ? 8 : avgDist < 3.5 ? 7 : avgDist < 4 ? 6 : avgDist < 5 ? 5 :avgDist < 6 ? 4 : 1;
-  const status_scoreDist = scoreDist >= 8 ? 'Meets requirements consistently' :
+  let scoreDist = 0;
+  if (!isNaN(avgDist)) {
+    scoreDist = avgDist < 2 ? 10 : avgDist < 2.5 ? 9 : avgDist < 3 ? 8 : avgDist < 3.5 ? 7 : avgDist < 4 ? 6 : avgDist < 5 ? 5 : avgDist < 6 ? 4 : 1;
+  }  const status_scoreDist = scoreDist >= 8 ? 'Meets requirements consistently' :
    scoreDist >= 6 ? 'Meets minimum requirements' : 
    scoreDist >= 3 ? 'Below expectations' : 'Fails minimum requirements';
 
@@ -1599,6 +1601,8 @@ function logNetworkAnalysis(num_monitors, avgDist, unionArea, shapeArea, ratio, 
    totalScore >= 15 ? 'Meets minimum requirements' : 
    totalScore >= 7 ? 'Below expectations' : 'Fails minimum requirements';
 
+  const avgDistDisplay = isNaN(avgDist) ? 'N/A' : `${avgDist.toFixed(1)}km`;
+
   const html = `
     <div class="net-result-inner">
       <div class="net-result-header" style="border-bottom: 2px solid ${totalColor}; padding-bottom: 5px; margin-bottom: 10px;">
@@ -1607,7 +1611,7 @@ function logNetworkAnalysis(num_monitors, avgDist, unionArea, shapeArea, ratio, 
       <div class="net-grid">
         <div class="net-card">
           <span class="net-metric-label">Avg. Distance</span>
-          <span class="net-metric-val">${avgDist.toFixed(1)}km</span>
+          <span class="net-metric-val">${avgDistDisplay}</span>
           <span class="net-metric-unit">Score: ${scoreDist}/10 (${status_scoreDist})</span>
         </div>
         <div class="net-card">
