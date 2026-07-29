@@ -2,8 +2,8 @@
 
 AQ-NEST is a web tool designed to estimate how many air quality monitors a region needs based on human population, and to evaluate how well existing or proposed monitor networks cover those people.
 You can access this tool here:
-1. [India specific tool](https://urbanemissionsinfo.github.io/MonitoringNeeds/) - has pre-loaded CPCB monitors locations.
-2. [Global](https://urbanemissionsinfo.github.io/MonitoringNeeds/global.html)
+1. [India specific tool](https://urbanemissionsinfo.github.io/AQNEST/) - has pre-loaded CPCB monitors locations.
+2. [Global](https://urbanemissionsinfo.github.io/AQNEST/global.html)
 
 ![alt text](data/example.png)
 
@@ -60,7 +60,10 @@ The web app runs entirely in the browser using raster processing and spatial ana
 
 Population datasets are taken from [Landscan Global 2024](https://landscan.ornl.gov/). This data is in raster format with spatial resolution of 30 arc seconds (1km at equator). Each pixel has the data on number of people living in that cell.
 
-When an area is defined (via manual bounding box, drawn polygon, or uploaded GeoJSON/KML Administrative boundaries), the tool extracts all underlying raster pixels and sums the total population.
+When an area is defined, the tool extracts all underlying raster pixels and sums the total population.
+
+An area can be defined wither by drawing a bounding box, polygon on the map or uploading a GeoJSON/KML Administrative boundaries.
+![alt text](drawlayer.png)
 
 ### Urban Correction Factor (UCF)
 
@@ -81,7 +84,15 @@ Background monitoring station counts (5% of SPM monitors) are also automatically
 
 ## Network Coverage Scores
 
-Users can manually place proposed monitor pins on the map or upload point locations via GeoJSON. Once placed, AQ-NEST evaluates the network using three metrics:
+Users can click `Start Placing` button to manually place proposed station pins on the map. They can also upload station locations via GeoJSON. These pins can be placed only side the area defined in the previous step. In the [India specific tool](https://urbanemissionsinfo.github.io/AQNEST/), CPCB monitors locations are pre-loaded.
+
+![alt text](data/pins.png)
+
+Users can also change already placed pins on map by dragging them across the map.
+
+Once placed users can click on `Calculate Network Coverage`.
+
+AQ-NEST evaluates the network using three metrics:
 1. **Population Coverage Score (10 pts):** Measures the percentage of the target population living within the effective radius of a monitor ($1\text{ km}$ for high-density areas $>8,000\text{ pop/cell}$, $2\text{ km}$ elsewhere).
 2. **Average Nearest-Neighbor Distance Score (10 pts):** Evaluates spatial clustering and inter-station spacing.
 3. **Requirement Met Score (10 pts):** Compares the number of placed monitors against CPCB's minimum target.
