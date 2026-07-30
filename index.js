@@ -1276,8 +1276,9 @@ function logPopulation(population, index, label, layer, target) {
   const out = document.getElementById('console-output');
   const millions   = (population/1_000_000).toFixed(2);
   const formatted  = population.toLocaleString('en-IN');
-  const pollutants = ['spm','so2','no2','co'];
-  const pLabels    = { spm:'SPM', so2:'SO₂', no2:'NO₂', co:'CO' };
+  // const pollutants = ['spm','so2','no2','co'];
+  const pollutants = ['spm'];
+  const pLabels    = { spm:'PM', so2:'SO₂', no2:'NO₂', co:'CO' };
   const areaStr    = target ? target.areaSqKm.toFixed(1)+' km²' : '—';
 
   // Calculate UCF for the target shape
@@ -1286,8 +1287,15 @@ function logPopulation(population, index, label, layer, target) {
 
   const monitorsHTML = pollutants.map(p => {
     const n = numMonitorsCpcb(p, population, ucf);
-    return `<div class="monitor-card"><span class="monitor-pollutant">${pLabels[p]}</span><span class="monitor-val">${n}</span></div>`;
+    const backgroundstations = Number(1)+Number((0.05*n).toFixed(0));
+    return `<div class="monitor-card">
+    <span class="monitor-pollutant">${pLabels[p]}</span>
+    <span class="monitor-val">${n}</span> 
+    <span class="monitor-unit">Background stations:${backgroundstations}</span> 
+    </div>`;
   }).join('');
+  //   return `<div class="monitor-card"><span class="monitor-pollutant">${pLabels[p]}</span><span class="monitor-val">${n}</span></div>`;
+  // }).join('');
 
   // Unique id for this entry's placement widget
   const uid = `mp-${Date.now()}`;
@@ -1306,6 +1314,7 @@ function logPopulation(population, index, label, layer, target) {
       <span class="monitors-label">Min. monitors required</span><span class="sub-label">Source: CPCB guidelines (2003)</span>
 
       <div class="monitors-grid">${monitorsHTML}</div>
+      <div class="mp-placed">Requirement is lower for other gases</div>
     </div>
     <div class="mp-widget" id="${uid}">
       ${csvNote}
