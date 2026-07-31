@@ -16,7 +16,26 @@ By overlaying global population datasets with local administrative boundaries or
 2. Minimum required air quality monitoring stations based on regulatory guidelines.
 3. A Network Score evaluating how well a network of stations represents the air breathed by the local population.
 
-## Methodology & Workflow
+## How to use this tool?
+
+1. The tool pre-loads 2024's Landscan Global population raster. You can use the `Toggle Population` button to see/unsee the population heatmap. On a slower internet connection, it might take a few seconds for the browser to load it. 
+2. **Define an area of interest:** There are three ways to do it:![alt text](drawlayer.png)
+
+    - Draw a bounding box
+    - Draw a polygon
+    - Upload an admin layer in GeoJSON or KML format
+3. The tool calculates the area defined and population living in it. The tool uses regulatory guidelines (CPCB 2003) to calcualte the minimum number of monitors required using the population data.
+4. **Place a monitor network:** There are two ways to place your air quality monitoring network. ![alt text](data/pins.png)
+    - You can choose number of monitors you'd want in your network and place them after clicking `Start Placing` button. You can manually click on the map to place a monitor at that location. Note that you can only place monitors inside the area defined.
+    - You can upload a GeoJSON (points layer) of stations. All the stations that fall inside the area defined will be placed on the map.
+5. **Click on  `Calculate Network Coverage` button:** It presents three metrics along with the overall network score.
+    - Average distance between the stations in the network.
+    - Population represented by the network placed.
+    - Percentage of minimum required monitors.
+6. You can also manually move the stations on the map after placing them and recalculate the network coverage.
+7. Finally, you can download your network as a CSV with `latitude` and `longitude` columns.
+
+## Methodology
 The web app runs entirely in the browser using raster processing and spatial analysis.
 
 ```text
@@ -62,9 +81,6 @@ Population datasets are taken from [Landscan Global 2024](https://landscan.ornl.
 
 When an area is defined, the tool extracts all underlying raster pixels and sums the total population.
 
-An area can be defined wither by drawing a bounding box, polygon on the map or uploading a GeoJSON/KML Administrative boundaries.
-![alt text](drawlayer.png)
-
 ### Urban Correction Factor (UCF)
 
 Not all population density is evenly distributed. To prevent under-estimating monitor needs in heavily clustered urban centers:
@@ -83,14 +99,6 @@ Using CPCB (Central Pollution Control Board) guideline formulas, the tool estima
 Background monitoring station counts (5% of SPM monitors) are also automatically calculated as a baseline offset.
 
 ## Network Coverage Scores
-
-Users can click `Start Placing` button to manually place proposed station pins on the map. They can also upload station locations via GeoJSON. These pins can be placed only side the area defined in the previous step. In the [India specific tool](https://urbanemissionsinfo.github.io/AQNEST/), CPCB monitors locations are pre-loaded.
-
-![alt text](data/pins.png)
-
-Users can also change already placed pins on map by dragging them across the map.
-
-Once placed users can click on `Calculate Network Coverage`.
 
 AQ-NEST evaluates the network using three metrics:
 1. **Population Coverage Score (10 pts):** Measures the percentage of the target population living within the effective radius of a monitor ($1\text{ km}$ for high-density areas $>8,000\text{ pop/cell}$, $2\text{ km}$ elsewhere).
