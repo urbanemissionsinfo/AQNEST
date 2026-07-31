@@ -1559,31 +1559,46 @@ function updateMonitorPlacementUI() {
   return combined
 }
 
-// ── DOWNLOAD PINS AS CSV ──────────────────────────────────────
-function downloadPinsCSV() {
+// ── DOWNLOAD PINS AS GEOJSON ──────────────────────────────────
+function downloadPinsGeoJSON() {
   if (!monitorPins || monitorPins.length === 0) {
     alert("No monitor locations available to download.");
     return;
   }
 
-  // Header and rows for latitude and longitude
-  let csvContent = "latitude,longitude\n";
-  monitorPins.forEach(marker => {
+  // Create an array of GeoJSON Point features
+  const features = monitorPins.map((marker, index) => {
     const ll = marker.getLatLng();
-    csvContent += `${ll.lat.toFixed(6)},${ll.lng.toFixed(6)}\n`;
+    return {
+      type: "Feature",
+      properties: {
+        id: index + 1
+      },
+      geometry: {
+        type: "Point",
+        // GeoJSON uses [longitude, latitude]
+        coordinates: [Number(ll.lng.toFixed(6)), Number(ll.lat.toFixed(6))]
+      }
+    };
   });
 
+  // Construct the final FeatureCollection
+  const geojson = {
+    type: "FeatureCollection",
+    features: features
+  };
+
   // Create a blob and trigger browser download
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const jsonContent = JSON.stringify(geojson, null, 2);
+  const blob = new Blob([jsonContent], { type: 'application/geo+json;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.setAttribute('href', url);
-  link.setAttribute('download', `network_monitors_${Date.now()}.csv`);
+  link.setAttribute('download', `network_monitors_${Date.now()}.geojson`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
 }
-
 // ── NETWORK ANALYSIS LOG ──────────────────────────────────────
 // Writes result into the widget's own .net-result placeholder (replaces on recalculate)
 const num_monitors = updateMonitorPlacementUI();
@@ -1647,8 +1662,8 @@ function logNetworkAnalysis(num_monitors, avgDist, unionArea, shapeArea, ratio, 
         </div>
       </div>
       <!-- DOWNLOAD BUTTON BELOW NETWORK SCORES -->
-      <button class="mp-btn" onclick="downloadPinsCSV()" style="margin-top: 12px; width: 100%; background-color: #164D12; color: #ffffff; cursor: pointer;">
-        ⬇ Download Network (CSV)
+      <button class="mp-btn" onclick="downloadPinsGeoJSON()" style="margin-top: 12px; width: 100%; background-color: #164D12; color: #ffffff; cursor: pointer;">
+        ⬇ Download Network (GeoJSON)
       </button>
     </div>`;
 

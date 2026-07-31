@@ -33,7 +33,7 @@ By overlaying global population datasets with local administrative boundaries or
     - Population represented by the network placed.
     - Percentage of minimum required monitors.
 6. You can also manually move the stations on the map after placing them and recalculate the network coverage.
-7. Finally, you can download your network as a CSV with `latitude` and `longitude` columns.
+7. Finally, you can download your network as a GeoJSON. You can upload this GeoJSON in `Step4` 
 
 ## Methodology
 The web app runs entirely in the browser using raster processing and spatial analysis.
