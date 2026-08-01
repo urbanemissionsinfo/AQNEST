@@ -11,7 +11,7 @@ const REGIONS = {
   africa: {
     name: 'Africa',
     center: [0.0, 20.0],
-    zoom: 3,
+    zoom: 4,
     tifPath: 'data/landscan-africa-2024-compressed.tif',
     boundaryPath: 'data/africa_boundary.geojson'
   },
@@ -25,30 +25,65 @@ const REGIONS = {
   south_asia: {
     name: 'South Asia',
     center: [25.0, 75.0],
-    zoom: 4,
+    zoom: 5,
     tifPath: 'data/landscan-southasia-2024-compressed.tif',
     boundaryPath: 'data/sasia_boundary.geojson'
+  },
+  east_asia: {
+    name: 'East Asia',
+    center: [35.0, 105.0],
+    zoom: 4,
+    tifPath: 'data/landscan-eastasia-2024-compressed.tif',
+    boundaryPath: 'data/eastasia_boundary.geojson'
+  },
+  west_asia: {
+    name: 'West Asia',
+    center: [29.0, 45.0],
+    zoom: 5,
+    tifPath: 'data/landscan-westasia-2024-compressed.tif',
+    boundaryPath: 'data/westasia_boundary.geojson'
   },
   central_asia: {
     name: 'Central Asia',
     center: [45.0, 65.0],
-    zoom: 4,
+    zoom: 5,
     tifPath: 'data/landscan-centralasia-2024-compressed.tif',
     boundaryPath: 'data/centralasia_boundary.geojson'
   },
+  europe: {
+    name: 'Europe',
+    center: [55.0, 5.0],
+    zoom: 4,
+    tifPath: 'data/landscan-europe-2024-compressed.tif',
+    boundaryPath: 'data/europe_boundary.geojson'
+  },
+  uscan: {
+    name: 'America - US & Canada',
+    center: [55.0, -105.0],
+    zoom: 4,
+    tifPath: 'data/landscan-uscan-2024-compressed.tif',
+    boundaryPath: 'data/uscan_boundary.geojson'
+  },
   s_america: {
     name: 'South America',
-    center: [-15.0, -60.0],
-    zoom: 3,
+    center: [-25.0, -60.0],
+    zoom: 4,
     tifPath: 'data/landscan-samerica-2024-compressed.tif',
     boundaryPath: 'data/samerica_boundary.geojson'
   },
   c_america: {
     name: 'Central America',
-    center: [15.0, -90.0],
+    center: [20.0, -100.0],
     zoom: 5,
     tifPath: 'data/landscan-camerica-2024-compressed.tif',
     boundaryPath: 'data/camerica_boundary.geojson'
+  },
+  australia: {
+    name: 'Australia',
+    center: [-25.0, 135.0],
+    zoom: 5,
+    tifPath: 'data/landscan-aus-2024-compressed.tif',
+    boundaryPath: 'data/aus_boundary.geojson'
   }
 };
 
